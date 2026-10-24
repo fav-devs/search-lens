@@ -22,7 +22,7 @@ from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, T
 DATASET_URL = "https://huggingface.co/datasets/jeffreyszhou/ikea-us-products-2025/resolve/main/products-us.jsonl"
 IMAGE_BASE = "https://www.ikea.com/us/en/images/products/"
 SIZES = {"xxs": 400, "xs": 500, "s": 600, "m": 700}
-USER_AGENT = "product-lens catalogue builder"
+USER_AGENT = "search-lens catalogue builder"
 
 
 @dataclass

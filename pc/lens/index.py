@@ -34,7 +34,7 @@ VISION_TOKENS = 140
 QUERY_PREFIX = "task: search result | query: "
 DIMS = (128, 256, 512, 768)
 CHUNK = 512
-FORMAT = "product-lens-index"
+FORMAT = "search-lens-index"
 DETAIL_SHARDS = 64
 
 

@@ -4,7 +4,7 @@ import { embedImage } from "./model";
 // The index the PC tool writes (pc/lens/index.py): manifest.json, then vectors.bin with `count` rows of `dims` int8
 // numbers followed by `count` float32 scales, so picture i's unit vector is row i × scale i, and (version 2) the
 // product pages' text in details/NN.json, product id % shards.
-const FORMAT = "product-lens-index";
+const FORMAT = "search-lens-index";
 
 export interface Product {
 	id: string;
@@ -103,7 +103,7 @@ export async function importIndex(address: string, onProgress: (message: string)
 	onProgress("Fetching the product list…");
 	const manifestFile = await File.downloadFileAsync(`${base}manifest.json`, new File(incoming, "manifest.json"));
 	const manifest = JSON.parse(await manifestFile.text()) as Manifest;
-	if (manifest.format !== FORMAT) throw new Error("That address isn't serving a Product Lens index.");
+	if (manifest.format !== FORMAT) throw new Error("That address isn't serving a Search Lens index.");
 
 	const vectorsFile = await File.downloadFileAsync(`${base}vectors.bin`, new File(incoming, "vectors.bin"), {
 		onProgress: ({ bytesWritten, totalBytes }) => {

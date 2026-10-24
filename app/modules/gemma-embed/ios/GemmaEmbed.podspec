@@ -4,8 +4,8 @@ Pod::Spec.new do |s|
   s.summary        = 'EmbeddingGemma 2 on LiteRT-LM: one photo or one line of text to a vector.'
   s.description    = s.summary
   s.license        = 'MIT'
-  s.author         = 'Product Lens'
-  s.homepage       = 'https://github.com/fav-devs/product-lens'
+  s.author         = 'Search Lens'
+  s.homepage       = 'https://github.com/fav-devs/search-lens'
   s.platforms      = { :ios => '17.0' }
   s.swift_version  = '5.9'
   s.source         = { git: '' }

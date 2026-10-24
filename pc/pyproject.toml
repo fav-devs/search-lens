@@ -1,7 +1,7 @@
 [project]
-name = "product-lens"
+name = "search-lens"
 version = "0.1.0"
-description = "Build the product index on a PC GPU and hand it to the Product Lens app."
+description = "Build the product index on a PC GPU and hand it to the Search Lens app."
 requires-python = ">=3.10,<3.14"
 dependencies = [
     "torch>=2.6",

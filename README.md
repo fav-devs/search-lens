@@ -1,4 +1,4 @@
-# Product Lens
+# Search Lens
 
 Take a photo of an IKEA product that has lost its tag, and the phone lists the closest products in the catalogue: name,
 size, price and article number. Tap one for its product page (description, good to know, materials and care, category,
