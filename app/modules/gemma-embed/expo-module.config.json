@@ -1,0 +1,9 @@
+{
+	"platforms": ["apple", "android"],
+	"apple": {
+		"modules": ["GemmaEmbedModule"]
+	},
+	"android": {
+		"modules": ["lens.gemma.GemmaEmbedModule"]
+	}
+}

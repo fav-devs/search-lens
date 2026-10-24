@@ -1,0 +1,48 @@
+{
+	"expo": {
+		"name": "Product Lens",
+		"slug": "product-lens",
+		"version": "0.1.0",
+		"orientation": "portrait",
+		"ios": {
+			"bundleIdentifier": "me.favdevs.productlens",
+			"supportsTablet": false,
+			"infoPlist": {
+				"ITSAppUsesNonExemptEncryption": false,
+				"NSLocalNetworkUsageDescription": "Product Lens copies the product index from your computer on this Wi-Fi.",
+				"NSAppTransportSecurity": {
+					"NSAllowsLocalNetworking": true,
+					"NSAllowsArbitraryLoads": true
+				}
+			}
+		},
+		"android": {
+			"package": "me.favdevs.productlens"
+		},
+		"plugins": [
+			"./plugins/with-litert",
+			"expo-dev-client",
+			[
+				"expo-camera",
+				{
+					"cameraPermission": "Product Lens looks at a product to find it in the catalogue.",
+					"microphonePermission": false,
+					"recordAudioAndroid": false,
+					"barcodeScannerEnabled": true
+				}
+			],
+			[
+				"expo-build-properties",
+				{
+					"ios": {
+						"deploymentTarget": "17.0"
+					},
+					"android": {
+						"kotlinVersion": "2.3.21",
+						"usesCleartextTraffic": true
+					}
+				}
+			]
+		]
+	}
+}

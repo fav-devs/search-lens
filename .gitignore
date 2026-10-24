@@ -1,0 +1,16 @@
+# PC tool
+pc/.venv/
+pc/data/
+__pycache__/
+*.egg-info/
+
+# App
+app/node_modules/
+app/.expo/
+app/android/
+app/ios/
+app/dist/
+app/expo-env.d.ts
+*.tsbuildinfo
+
+.DS_Store

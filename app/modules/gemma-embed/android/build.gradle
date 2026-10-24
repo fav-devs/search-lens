@@ -1,0 +1,20 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'lens.gemma'
+version = '0.1.0'
+
+android {
+  namespace "lens.gemma"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}
+
+dependencies {
+  // EmbeddingGemma 2 through Google's LiteRT-LM (Apache-2.0). Keep in step with the iOS package in GemmaEmbed.podspec.
+  implementation 'com.google.ai.edge.litertlm:litertlm-android:0.18.1'
+}
