@@ -1,7 +1,8 @@
 # Product Lens
 
 Take a photo of an IKEA product that has lost its tag, and the phone lists the closest products in the catalogue: name,
-size, price and article number. Tap one to open its page on IKEA.com.
+size, price and article number. Tap one for its product page (description, good to know, materials and care, category,
+article number) and **Open in IKEA**, which opens the IKEA app when it's installed and IKEA.com when it isn't.
 
 Everything runs on-device with **EmbeddingGemma 2**, Google's open multimodal embedding model. Photos and text land
 in one vector space, so you can also type "white 4-drawer dresser with knobs".
@@ -16,7 +17,13 @@ lens serve      QR code in the terminal ─────────────�
                                                            → tap → ikea.com product page
 ```
 
-The phone stores no product pictures: results load thumbnails from IKEA's site, and a tap opens the product page.
+The phone stores no product pictures: results load thumbnails from IKEA's site. Product text comes with the index, in 64
+small files (`details/`), and a product page reads only the one it needs.
+
+**Opening the IKEA app.** IKEA's app claims ikea.com product links (`/<country>/<language>/p/…`) on iOS and Android, so
+the app just opens the link and the phone picks the IKEA app if it's there. The dataset is the US catalogue; *Setup →
+Product links → Canada* rewrites links to ikea.com/ca. Prices stay US, and products not sold in Canada open a category
+page there.
 
 ## 1 · PC: build the index
 
@@ -34,7 +41,7 @@ uv run lens      # download → index → serve, resuming wherever a previous ru
 | Command | What it does |
 | --- | --- |
 | `lens download [--category "Lighting"] [--limit 500]` | Product list from the [IKEA US dataset](https://huggingface.co/datasets/jeffreyszhou/ikea-us-products-2025) (July 2025), plus one picture per product from IKEA's image server at 400 px (~250 MB in total, about 6 min). |
-| `lens index [--dims 512] [--batch 16]` | Embeds every picture on the GPU and writes `data/index/`. Prints which GPU it found. Stopping and running again picks up where it was. |
+| `lens index [--dims 512] [--batch 16]` | Embeds every picture on the GPU and writes `data/index/` (vectors, product list, product details). Prints which GPU it found. Stopping and running again picks up where it was; pictures already embedded aren't embedded again. |
 | `lens search "black desk lamp"` / `lens search photo.jpg` | Tries the index on the PC. |
 | `lens serve [--port 8765]` | Shares `data/index/` on the Wi-Fi and prints the QR code. Allow Python through the firewall if Windows asks. |
 

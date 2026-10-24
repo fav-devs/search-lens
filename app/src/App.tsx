@@ -15,6 +15,7 @@ import { splitTitle } from "./format";
 import { type LensIndex, loadIndex, type Product, pictureVector, search } from "./lens-index";
 import { embedImage, embedText, loadModel, modelPresent } from "./model";
 import { cropToGuide } from "./photo";
+import { readSettings, type Settings, writeSettings } from "./settings";
 import { CameraScreen } from "./screens/CameraScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { type OpenProduct, ProductSheet } from "./screens/ProductSheet";
@@ -55,6 +56,11 @@ export default function App() {
 	const [recentSearches, setRecentSearches] = useState<string[]>([]);
 	const [saved, setSaved] = useState<Product[]>([]);
 	const [busy, setBusy] = useState(false);
+	const [settings, setSettings] = useState<Settings>(readSettings);
+	const changeSettings = useCallback((next: Settings) => {
+		setSettings(next);
+		writeSettings(next);
+	}, []);
 
 	useEffect(() => {
 		loadIndex()
@@ -262,6 +268,8 @@ export default function App() {
 						index={index}
 						onIndex={setIndex}
 						onClose={() => setTab("home")}
+						settings={settings}
+						onSettings={changeSettings}
 						inTabs
 					/>
 				)}
@@ -277,7 +285,8 @@ export default function App() {
 			{index ? (
 				<ProductSheet
 					open={open}
-					manifest={index.manifest}
+					index={index}
+					country={settings.country}
 					saved={open ? saved.some((p) => p.id === open.product.id) : false}
 					onToggleSaved={toggleSaved}
 					onClose={() => setOpen(null)}

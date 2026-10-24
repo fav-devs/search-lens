@@ -1,8 +1,10 @@
 """Embed every catalogue picture with EmbeddingGemma 2 and write the index the phone searches.
 
-The phone gets two files:
+The phone gets:
   manifest.json  model settings, the pictures (row i of the vectors is picture i) and the products that use them
   vectors.bin    count × dims int8 rows, then count float32 scales (row i ≈ int8 row × scale i, unit length)
+  details/NN.json  each product's description, good-to-know notes, materials, care and category path, split by
+                 int(product id) % DETAIL_SHARDS so the phone only parses the file a product page needs
 
 int8 with a scale per row keeps 28,000 pictures at 512 dimensions to ~14 MB, and the phone can score them straight
 from the file without decoding anything.
@@ -33,6 +35,7 @@ QUERY_PREFIX = "task: search result | query: "
 DIMS = (128, 256, 512, 768)
 CHUNK = 512
 FORMAT = "product-lens-index"
+DETAIL_SHARDS = 64
 
 
 def pick_device(cpu: bool, console: Console):
@@ -149,11 +152,26 @@ def write(data: Path, products, pictures, vectors: np.ndarray, dims: int, consol
         f.write(quantized.tobytes())
         f.write(scales.astype("<f4").tobytes())
 
+    details = out / "details"
+    shutil.rmtree(details, ignore_errors=True)
+    details.mkdir()
+    shards: list[dict] = [{} for _ in range(DETAIL_SHARDS)]
+    for p in products:
+        shards[int(p.id) % DETAIL_SHARDS][p.id] = {
+            "description": p.description,
+            "goodToKnow": p.good_to_know,
+            "materials": p.materials,
+            "care": p.care,
+            "path": p.path,
+        }
+    for n, shard in enumerate(shards):
+        (details / f"{n:02d}.json").write_text(json.dumps(shard, ensure_ascii=False), encoding="utf-8")
+
     row = {key: i for i, (key, _) in enumerate(pictures)}
     size = json.loads((data / "catalog.json").read_text(encoding="utf-8"))["size"]
     manifest = {
         "format": FORMAT,
-        "version": 1,
+        "version": 2,
         "model": MODEL_ID,
         "visionTokens": VISION_TOKENS,
         "queryPrefix": QUERY_PREFIX,
@@ -162,6 +180,7 @@ def write(data: Path, products, pictures, vectors: np.ndarray, dims: int, consol
         "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "imageBase": catalog.IMAGE_BASE,
         "imageSize": size,
+        "details": {"shards": DETAIL_SHARDS},
         "pictures": [source for _, source in pictures],
         "products": [
             {"id": p.id, "title": p.title, "price": p.price, "url": p.url, "category": p.category, "picture": row[p.picture]}
@@ -169,7 +188,7 @@ def write(data: Path, products, pictures, vectors: np.ndarray, dims: int, consol
         ],
     }
     (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
-    megabytes = ((out / "vectors.bin").stat().st_size + (out / "manifest.json").stat().st_size) / 1e6
+    megabytes = sum(f.stat().st_size for f in out.rglob("*") if f.is_file()) / 1e6
     console.print(f"[green]Index ready[/]: {out} · {len(pictures):,} pictures × {dims} · {megabytes:.1f} MB for the phone")
     return out
 

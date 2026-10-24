@@ -2,7 +2,8 @@ import { Directory, File, Paths } from "expo-file-system";
 import { embedImage } from "./model";
 
 // The index the PC tool writes (pc/lens/index.py): manifest.json, then vectors.bin with `count` rows of `dims` int8
-// numbers followed by `count` float32 scales, so picture i's unit vector is row i × scale i.
+// numbers followed by `count` float32 scales, so picture i's unit vector is row i × scale i, and (version 2) the
+// product pages' text in details/NN.json, product id % shards.
 const FORMAT = "product-lens-index";
 
 export interface Product {
@@ -29,6 +30,18 @@ export interface Manifest {
 	/** Each picture's file name on IKEA's image server, in vector order. */
 	pictures: string[];
 	products: Product[];
+	/** Missing in version 1 indexes, which had no product details. */
+	details?: { shards: number };
+}
+
+/** What IKEA's product page says about a product, from the dataset. */
+export interface ProductDetails {
+	description: string;
+	goodToKnow: string[];
+	materials: string[];
+	care: string[];
+	/** "Storage & organization" › "Dressers & storage drawers" › "Nightstands" */
+	path: string[];
 }
 
 export interface LensIndex {
@@ -36,6 +49,8 @@ export interface LensIndex {
 	vectors: Int8Array;
 	scales: Float32Array;
 	productsByPicture: Product[][];
+	/** Detail files already read, by shard. */
+	detailCache: Map<number, Promise<Record<string, ProductDetails>>>;
 }
 
 export interface Hit {
@@ -58,7 +73,7 @@ function open(manifest: Manifest, bytes: Uint8Array): LensIndex {
 	const scales = new Float32Array(bytes.slice(count * dims).buffer);
 	const productsByPicture: Product[][] = Array.from({ length: count }, () => []);
 	for (const product of manifest.products) productsByPicture[product.picture]?.push(product);
-	return { manifest, vectors, scales, productsByPicture };
+	return { manifest, vectors, scales, productsByPicture, detailCache: new Map() };
 }
 
 export async function loadIndex(): Promise<LensIndex | null> {
@@ -97,10 +112,30 @@ export async function importIndex(address: string, onProgress: (message: string)
 	});
 	const index = open(manifest, await vectorsFile.bytes());
 
+	const shards = manifest.details?.shards ?? 0;
+	if (shards) {
+		const details = new Directory(incoming, "details");
+		details.create();
+		for (let n = 0; n < shards; n++) {
+			onProgress(`Fetching product details… ${n + 1}/${shards}`);
+			const name = `${String(n).padStart(2, "0")}.json`;
+			await File.downloadFileAsync(`${base}details/${name}`, new File(details, name));
+		}
+	}
+
 	for (const name of ["manifest.json", "vectors.bin"]) {
 		const current = new File(directory, name);
 		if (current.exists) current.delete();
 		await new File(incoming, name).move(current);
+	}
+	const currentDetails = new Directory(directory, "details");
+	if (currentDetails.exists) currentDetails.delete();
+	if (shards) {
+		currentDetails.create();
+		for (let n = 0; n < shards; n++) {
+			const name = `${String(n).padStart(2, "0")}.json`;
+			await new File(incoming, "details", name).move(new File(currentDetails, name));
+		}
 	}
 	incoming.delete();
 	return index;
@@ -145,6 +180,33 @@ export function search(index: LensIndex, query: number[], limit = 10): Hit[] {
 		hits.push({ picture: bestRow[i], score: bestScore[i], products: index.productsByPicture[bestRow[i]] });
 	}
 	return hits;
+}
+
+/** The product page's text, or null for an index built before the PC tool wrote details. */
+export async function loadDetails(index: LensIndex, id: string): Promise<ProductDetails | null> {
+	const shards = index.manifest.details?.shards;
+	if (!shards) return null;
+	const shard = Number(id) % shards;
+	let records = index.detailCache.get(shard);
+	if (!records) {
+		const file = new File(indexDirectory(), "details", `${String(shard).padStart(2, "0")}.json`);
+		records = file.text().then((text) => JSON.parse(text) as Record<string, ProductDetails>);
+		// A failed read isn't cached, so the next product page tries again.
+		records.catch(() => index.detailCache.delete(shard));
+		index.detailCache.set(shard, records);
+	}
+	return (await records)[id] ?? null;
+}
+
+export type Country = "us" | "ca";
+
+/**
+ * The product's IKEA.com address for `country`. The IKEA app claims ikea.com/<country>/<language>/p/… links on iOS
+ * and Android, so opening one goes to the app when it's installed and to the browser when it isn't. Products not sold
+ * in Canada land on a category page there.
+ */
+export function productLink(url: string, country: Country): string {
+	return country === "us" ? url : url.replace("/us/en/", `/${country}/en/`);
 }
 
 export function pictureUrl(manifest: Manifest, picture: number, size = manifest.imageSize): string {

@@ -13,7 +13,7 @@ import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from rich.console import Console
@@ -37,6 +37,13 @@ class Product:
     picture: str
     # The picture's file name on IKEA's image server.
     source: str
+    # What the product page says, for the app's product screen. Defaults keep catalogues from older runs readable.
+    description: str = ""
+    good_to_know: list[str] = field(default_factory=list)
+    materials: list[str] = field(default_factory=list)
+    care: list[str] = field(default_factory=list)
+    # "Storage & organization" › "Dressers & storage drawers" › "Nightstands"
+    path: list[str] = field(default_factory=list)
 
 
 def mixed_numbers(title: str) -> str:
@@ -66,6 +73,8 @@ def read_products(list_path: Path, categories: list[str], limit: int | None) -> 
         if not line.strip():
             continue
         row = json.loads(line)
+        # ["Products", "Storage & organization", …, "Nightstands", "YTTERVÅGNightstand"]: the first and last crumbs
+        # are noise.
         path = (row.get("category_tree") or [])[1:]
         if wanted and not any(w in crumb.lower() for w in wanted for crumb in path):
             continue
@@ -74,15 +83,23 @@ def read_products(list_path: Path, categories: list[str], limit: int | None) -> 
         key = re.search(r"__\d+_(p[a-z]\d+)_", source)
         if not key:
             continue
+        title = re.sub(r"\s*-\s*IKEA US$", "", row["title"])
+        # The scraped description repeats the title first: "ZEBRASÄV pendant lamp, white/plastic, 18" ZEBRASÄV …".
+        description = (row.get("description") or "").removeprefix(title).lstrip(" .,;:–-")
         products.append(
             Product(
                 id=row["product_id"],
-                title=mixed_numbers(re.sub(r"\s*-\s*IKEA US$", "", row["title"])),
+                title=mixed_numbers(title),
                 price=float(row["price"]),
                 url=row["source_url"],
                 category=(path[-2] if len(path) > 1 else path[-1] if path else ""),
                 picture=key.group(1),
                 source=source,
+                description=description,
+                good_to_know=row.get("good_to_know") or [],
+                materials=row.get("materials") or [],
+                care=row.get("care_instructions") or [],
+                path=path[:-1] if len(path) > 1 else path,
             )
         )
         if limit and len(products) >= limit:

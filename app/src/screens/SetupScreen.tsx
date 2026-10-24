@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ModelState } from "../App";
 import { checkAgainstPC, importIndex, type LensIndex } from "../lens-index";
 import { downloadModel, MODEL } from "../model";
+import type { Settings } from "../settings";
 import { colors, fonts } from "../theme";
 import { CircleButton, PillButton, TAB_BAR_SPACE } from "../ui";
 
@@ -18,6 +19,8 @@ export function SetupScreen({
 	index,
 	onIndex,
 	onClose,
+	settings,
+	onSettings,
 	inTabs,
 }: {
 	model: ModelState;
@@ -27,6 +30,8 @@ export function SetupScreen({
 	onIndex: (index: LensIndex) => void;
 	/** Missing until the model and an index are both ready. */
 	onClose?: () => void;
+	settings?: Settings;
+	onSettings?: (settings: Settings) => void;
 	/** Shown as a tab, above the tab bar. */
 	inTabs?: boolean;
 }) {
@@ -168,6 +173,27 @@ export function SetupScreen({
 				</View>
 			) : null}
 
+			{settings && onSettings ? (
+				<View style={styles.card}>
+					<Text style={styles.step}>Product links</Text>
+					<Text style={styles.muted}>
+						“Open in IKEA” opens the IKEA app if it’s installed, otherwise IKEA.com. Prices are from the US catalogue;
+						products not sold in Canada open a category page there.
+					</Text>
+					<View style={styles.segments}>
+						{(["us", "ca"] as const).map((country) => (
+							<Text
+								key={country}
+								onPress={() => onSettings({ ...settings, country })}
+								style={[styles.segment, settings.country === country && styles.segmentOn]}
+							>
+								{country === "us" ? "United States" : "Canada"}
+							</Text>
+						))}
+					</View>
+				</View>
+			) : null}
+
 			{onClose && !inTabs ? <PillButton title="Start" onPress={onClose} /> : null}
 
 			<QrScanner
@@ -265,6 +291,18 @@ const styles = StyleSheet.create({
 	},
 	track: { height: 8, borderRadius: 4, backgroundColor: colors.field, overflow: "hidden" },
 	bar: { height: 8, backgroundColor: colors.blue },
+	segments: { flexDirection: "row", backgroundColor: colors.field, borderRadius: 999, padding: 4 },
+	segment: {
+		flex: 1,
+		textAlign: "center",
+		color: colors.muted,
+		fontFamily: fonts.bold,
+		fontSize: 15,
+		paddingVertical: 12,
+		borderRadius: 999,
+		overflow: "hidden",
+	},
+	segmentOn: { backgroundColor: colors.text, color: colors.tileText },
 	scanner: { flex: 1, backgroundColor: "black", justifyContent: "flex-end" },
 	scannerBar: { padding: 24, paddingBottom: 48, gap: 14, backgroundColor: "rgba(0,0,0,0.6)" },
 });
