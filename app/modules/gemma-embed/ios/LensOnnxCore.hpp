@@ -212,22 +212,26 @@ inline std::vector<InputView> unpackInputs(const std::vector<std::string> &names
 
 /// Outputs for JS, in one buffer: int32 count, then per output its rank and sizes (int32s), then every output's
 /// float32 values back to back in the same order. Read by `runOnnx` in modules/gemma-embed/index.ts.
-inline std::vector<uint8_t> packOutputs(const std::vector<Output> &outputs) {
+inline size_t packedSize(const std::vector<Output> &outputs) {
+  size_t words = 1;
+  for (const Output &output : outputs) words += 1 + output.dims.size() + output.data.size();
+  return words * 4;
+}
+
+/// Write `outputs` packed as above into `destination`, which holds `packedSize(outputs)` bytes. Writing straight
+/// into the buffer JS gets saves a copy of what can be tens of megabytes (EdgeTAM's features).
+inline void packInto(const std::vector<Output> &outputs, uint8_t *destination) {
   std::vector<int32_t> header{(int32_t)outputs.size()};
-  size_t floats = 0;
   for (const Output &output : outputs) {
     header.push_back((int32_t)output.dims.size());
     for (int64_t d : output.dims) header.push_back((int32_t)d);
-    floats += output.data.size();
   }
-  std::vector<uint8_t> bytes(header.size() * 4 + floats * 4);
-  std::memcpy(bytes.data(), header.data(), header.size() * 4);
+  std::memcpy(destination, header.data(), header.size() * 4);
   size_t offset = header.size() * 4;
   for (const Output &output : outputs) {
-    std::memcpy(bytes.data() + offset, output.data.data(), output.data.size() * 4);
+    std::memcpy(destination + offset, output.data.data(), output.data.size() * 4);
     offset += output.data.size() * 4;
   }
-  return bytes;
 }
 
 }  // namespace lens_onnx

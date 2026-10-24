@@ -102,6 +102,6 @@ links to ikea.com/ca, where products sold in Canada open their page and the rest
 - It is a **lookup aid**, not an oracle: it usually gets the series right, and size or colour variants of one series
   look almost identical, so it shows the top matches for a person to pick from.
 - **Prices are US dollars from July 2025.** Products added since then aren't in the catalogue.
-- The app has been type-checked and its screens rendered on the web, and the native module compiles against the real
-  LiteRT-LM classes, but it has **not yet run on a phone**. The first EAS build is the real test; see
-  [app.md](app.md#troubleshooting).
+- The app has been type-checked and its screens rendered on the web, and the native module has been compiled, and its
+  ONNX code run on the real models, off the phone ([what has been checked](app.md#what-has-been-checked)). It has
+  **not yet run on a phone**. The first EAS build is the real test; see [app.md](app.md#troubleshooting).

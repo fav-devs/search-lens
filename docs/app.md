@@ -113,10 +113,28 @@ page needs them and kept for the session.
 Android: `android/src/main/java/lens/gemma/GemmaEmbedModule.kt` and `OnnxRunner.kt`. iOS: `ios/GemmaEmbedModule.swift`
 (Expo binding), `ios/GemmaEngine.swift` (LiteRT-LM, kept separate so only its names are in scope) and
 `ios/LensOnnx.mm` + `LensOnnxCore.hpp` (ONNX Runtime in C++). The ONNX code comes from the Sondr app's model lab.
-`OnnxRunner.kt` and `LensOnnxCore.hpp` have been run against the real room-scan models with the desktop builds of ONNX
-Runtime 1.24.3 and give the same results as ONNX Runtime does from Python and Node; the Expo bindings and the Objective-C++
-wrapper around them haven't been built for a phone yet.
 Keep the LiteRT-LM and ONNX Runtime versions the same in `android/build.gradle` and `ios/GemmaEmbed.podspec`.
+
+The two platforms run ONNX the same way: sessions by id, integer inputs converted to the type the model declares,
+outputs packed once into the buffer JavaScript gets. On iOS the ONNX functions have a dispatch queue of their own, so a
+scan doesn't hold up other modules' calls on Expo's shared one.
+
+### What has been checked
+
+Nothing has been built with Xcode or Gradle or run on a phone yet. Short of that:
+
+| Code | Checked by |
+| --- | --- |
+| `OnnxRunner.kt` | Running it on the JVM with ONNX Runtime 1.24.3 on the real OWL-ViT and EdgeTAM models: the same values as ONNX Runtime 1.24.3 from Node. |
+| `LensOnnx.mm` + `LensOnnxCore.hpp` | Building them with clang and GNUstep on Linux and calling them the way `GemmaEmbedModule.swift` does, on the same models: OWL-ViT's output identical to Node's, EdgeTAM's mask within 0.00001 with every pixel the same. Missing or broken model files, input data of the wrong length, unknown input or output names and released sessions come back as errors, not crashes. The C++ part also runs clean under AddressSanitizer and UBSan. |
+| `GemmaEmbedModule.swift` | Type-checking it with Swift 6.2, in Swift 5 and 6 modes, against a stand-in for ExpoModulesCore with SDK 58's signatures, with `LensOnnx.h` read by Swift's own Objective-C importer. |
+| `GemmaEngine.swift` | Type-checking it against LiteRT-LM 0.18.1's Swift sources and the C headers from that release. |
+| `GemmaEmbedModule.kt` | Compiling it against the real LiteRT-LM classes and stand-ins for Expo's Kotlin API. |
+
+GNUstep's older Objective-C runtime needed two changes that Apple's doesn't: the result object's C++ field declared in
+its interface, and a shim so C++ exceptions reach the wrapper's `catch`. The tests ran on a copy with those changes.
+Expect the first Xcode build to turn up something these checks can't, such as CocoaPods or Swift Package Manager
+settings.
 
 ## Build plumbing
 

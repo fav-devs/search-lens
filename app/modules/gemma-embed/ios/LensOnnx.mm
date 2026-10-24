@@ -27,13 +27,32 @@ static NSArray<NSDictionary<NSString *, id> *> *LensOnnxDescribe(const std::vect
   return described;
 }
 
+@implementation LensOnnxResult {
+  std::vector<lens_onnx::Output> _outputs;
+}
+
+- (instancetype)initWithOutputs:(std::vector<lens_onnx::Output>)outputs {
+  if ((self = [super init])) _outputs = std::move(outputs);
+  return self;
+}
+
+- (NSUInteger)length {
+  return lens_onnx::packedSize(_outputs);
+}
+
+- (void)writeTo:(void *)destination {
+  lens_onnx::packInto(_outputs, (uint8_t *)destination);
+}
+
+@end
+
 @implementation LensOnnxRunner
 
 + (NSDictionary<NSString *, id> *)createSessionWithPath:(NSString *)path
                                                 threads:(NSInteger)threads
                                               useCoreML:(BOOL)useCoreML
                                                   error:(NSError **)error {
-  if ([path hasPrefix:@"file://"]) path = [NSURL URLWithString:path].path;
+  if ([path hasPrefix:@"file://"]) path = [NSURL URLWithString:path].path ?: path;
   if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
     if (error) *error = LensOnnxError([NSString stringWithFormat:@"The model file isn't there: %@", path]);
     return nil;
@@ -62,12 +81,13 @@ static NSArray<NSDictionary<NSString *, id> *> *LensOnnxDescribe(const std::vect
   }
 }
 
-+ (NSData *)runSession:(NSInteger)sessionId
-            inputNames:(NSArray<NSString *> *)names
-                  dims:(NSArray<NSArray<NSNumber *> *> *)dims
-                  data:(NSData *)data
-           outputNames:(NSArray<NSString *> *)outputNames
-                 error:(NSError **)error {
++ (LensOnnxResult *)runSession:(NSInteger)sessionId
+                    inputNames:(NSArray<NSString *> *)names
+                          dims:(NSArray<NSArray<NSNumber *> *> *)dims
+                         bytes:(const void *)bytes
+                        length:(NSUInteger)length
+                   outputNames:(NSArray<NSString *> *)outputNames
+                         error:(NSError **)error {
   try {
     std::vector<std::string> inputNames;
     for (NSString *name in names) inputNames.push_back(name.UTF8String);
@@ -80,9 +100,8 @@ static NSArray<NSDictionary<NSString *, id> *> *LensOnnxDescribe(const std::vect
     std::vector<std::string> wanted;
     for (NSString *name in outputNames) wanted.push_back(name.UTF8String);
     auto session = lens_onnx::Registry::shared().get((int)sessionId);
-    auto inputs = lens_onnx::unpackInputs(inputNames, shapes, (const uint8_t *)data.bytes, data.length);
-    auto packed = lens_onnx::packOutputs(session->run(inputs, wanted));
-    return [NSData dataWithBytes:packed.data() length:packed.size()];
+    auto inputs = lens_onnx::unpackInputs(inputNames, shapes, (const uint8_t *)bytes, length);
+    return [[LensOnnxResult alloc] initWithOutputs:session->run(inputs, wanted)];
   } catch (const std::exception &failure) {
     if (error) *error = LensOnnxError([NSString stringWithUTF8String:failure.what()]);
     return nil;
