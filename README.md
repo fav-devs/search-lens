@@ -72,33 +72,30 @@ On first launch, **Setup** walks you through it:
 
 Then point the camera at the product, fill the square with it, and press the shutter.
 
-## How the phone and the PC stay in step
+## Docs
 
-- **Same model.** The phone's `embeddinggemma-2-text-vision-440m` LiteRT-LM bundle is the text and picture half of
-  `google/embeddinggemma-2`, which the PC runs. Both produce unit vectors in the same 768-dimension space. The index
-  keeps the first 512 numbers (the model is trained for that) and stores them as int8 with a scale per picture.
-- **Same picture budget.** Phones run the vision encoder at 70 or 140 tokens per image, and the PC's default is 280.
-  The same picture at 280 and at 140 tokens only agrees to about 0.97, so the PC builds the index at 140 and the app
-  asks LiteRT-LM for 140 (`visionTokens` in `manifest.json`).
-- **Same text prefix.** Typed searches get `task: search result | query: ` in front, as the model card says; pictures
-  get none.
+| | |
+| --- | --- |
+| [docs/architecture.md](docs/architecture.md) | How it works, the model, and what keeps the phone and the PC in step |
+| [docs/pc-tool.md](docs/pc-tool.md) | Every `lens` command and option, the data folder, troubleshooting |
+| [docs/app.md](docs/app.md) | Building, first launch, screens, the native module, build plumbing, troubleshooting |
+| [docs/index-format.md](docs/index-format.md) | The files the PC writes and the phone reads |
+| [docs/demo.md](docs/demo.md) | Showing it to someone at the store |
+| [AGENTS.md](AGENTS.md) | For anyone changing the code: what must stay the same on both sides |
 
 ## Layout
 
 ```
-pc/lens/catalog.py     dataset + picture download, size-fraction repair
-pc/lens/index.py       GPU detection, embedding, the index format, `lens search`
-pc/lens/serve.py       Wi-Fi file server + terminal QR code
-app/src/               screens, index import and search, photo crop
+pc/lens/catalog.py         dataset + picture download, data clean-up
+pc/lens/index.py           GPU detection, embedding, the index format, `lens search`
+pc/lens/serve.py           Wi-Fi file server + terminal QR code
+app/src/                   screens, index import and search, photo crop, settings
 app/modules/gemma-embed/   native module: LiteRT-LM on Android (Kotlin) and iOS (Swift)
 app/plugins/with-litert.js Android GPU libraries + embedding LiteRT-LM's iOS framework
 ```
 
-## Notes
+## Status and data
 
-- **Kotlin.** LiteRT-LM 0.18.1 for Android is built with Kotlin 2.4, and React Native 0.88 compiles with Kotlin 2.2,
-  which can't read it. `app.json` sets `android.kotlinVersion` to 2.3.21 through `expo-build-properties`. If an
-  Android build still complains about incompatible Kotlin metadata, try `2.4.21`.
-- **iOS**: iPhone with iOS 17 or later.
-- **Data.** The product data and pictures are IKEA's. The dataset is published for research and non-commercial use;
-  this is a personal demo, not an IKEA product.
+The app type-checks and its screens have been rendered on the web, but it hasn't run on a phone yet; the first EAS
+build is the real test ([troubleshooting](docs/app.md#troubleshooting)). Product data and pictures are IKEA's, from a
+dataset published for research and non-commercial use. This is a personal demo, not an IKEA product.
