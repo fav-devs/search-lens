@@ -1,140 +1,89 @@
 import { Image } from "expo-image";
-import { useEffect } from "react";
-import { BackHandler, FlatList, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { articleNumber, type Hit, type Manifest, type Product, pictureUrl } from "../lens-index";
-import { colors } from "../theme";
+import type { Hit, Manifest, Product } from "../lens-index";
+import { colors, fonts } from "../theme";
+import { CircleButton, MatchBadge, ProductCard } from "../ui";
 
 export interface Result {
-	query: { kind: "photo"; uri: string } | { kind: "text"; text: string };
+	query: { kind: "photo"; uri: string } | { kind: "text"; text: string } | { kind: "similar"; product: Product };
 	hits: Hit[];
 	timings: { prepareMs: number; modelMs: number; searchMs: number };
 }
 
-interface Row {
-	key: string;
+export interface Listed {
 	product: Product;
-	score: number;
-	rank: number;
+	score?: number;
 }
 
-export function ResultsScreen({ result, manifest, onBack }: { result: Result; manifest: Manifest; onBack: () => void }) {
-	const insets = useSafeAreaInsets();
-	// Variants that share a picture (a bed frame in Queen and King) score the same, so they're listed together.
-	const rows: Row[] = result.hits.flatMap((hit, rank) =>
-		hit.products.map((product) => ({ key: `${hit.picture}-${product.id}`, product, score: hit.score, rank })),
-	);
-	const { prepareMs, modelMs, searchMs } = result.timings;
+/** Search results flattened to products: variants that share a picture (Queen, King) share its score. */
+export function resultProducts(result: Result): Listed[] {
+	return result.hits.flatMap((hit) => hit.products.map((product) => ({ product, score: hit.score })));
+}
 
-	useEffect(() => {
-		const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-			onBack();
-			return true;
-		});
-		return () => subscription.remove();
-	}, [onBack]);
+/** IKEA's two-column product list, for search results and for a category. */
+export function ProductListScreen({
+	title,
+	subtitle,
+	photo,
+	items,
+	manifest,
+	onBack,
+	onProduct,
+}: {
+	title: string;
+	subtitle?: string;
+	photo?: string;
+	items: Listed[];
+	manifest: Manifest;
+	onBack: () => void;
+	onProduct: (item: Listed) => void;
+}) {
+	const insets = useSafeAreaInsets();
+	const { width } = useWindowDimensions();
+	const card = (width - 20 * 2 - 14) / 2;
 
 	return (
-		<View style={[styles.screen, { paddingTop: insets.top }]}>
-			<View style={styles.header}>
-				{result.query.kind === "photo" ? (
-					<Image source={{ uri: result.query.uri }} style={styles.photo} />
-				) : (
-					<View style={[styles.photo, styles.textQuery]}>
-						<Text style={styles.textQueryText} numberOfLines={4}>
-							“{result.query.text}”
-						</Text>
-					</View>
-				)}
-				<View style={styles.headerText}>
-					<Text style={styles.title}>Closest products</Text>
-					<Text style={styles.muted}>Tap one to open it on IKEA.com</Text>
-					<Text style={styles.timing}>
-						{prepareMs > 0 ? `crop ${prepareMs} ms · ` : ""}model {modelMs} ms · search {searchMs} ms
-					</Text>
-				</View>
+		<View style={[styles.screen, { paddingTop: insets.top + 10 }]}>
+			<View style={styles.top}>
+				<CircleButton icon="chevron-back" onPress={onBack} />
 			</View>
-
 			<FlatList
-				data={rows}
-				keyExtractor={(row) => row.key}
-				contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 96 }}
-				renderItem={({ item, index }) => {
-					const sharesPicture = index > 0 && rows[index - 1].rank === item.rank;
-					return (
-						<Pressable
-							onPress={() => Linking.openURL(item.product.url)}
-							style={({ pressed }) => [styles.row, sharesPicture && styles.variant, pressed && { opacity: 0.7 }]}
-						>
-							<Image
-								source={{ uri: pictureUrl(manifest, item.product.picture) }}
-								style={[styles.thumb, sharesPicture && { opacity: 0.35 }]}
-								contentFit="contain"
-								transition={150}
-							/>
-							<View style={styles.rowText}>
-								<Text style={styles.product} numberOfLines={2}>
-									{item.product.title}
-								</Text>
-								<Text style={styles.meta}>
-									${item.product.price.toFixed(2)} · {articleNumber(item.product.id)}
-								</Text>
-								<Text style={styles.category} numberOfLines={1}>
-									{item.product.category}
-								</Text>
-							</View>
-							<Text style={[styles.score, { color: item.score > 0.8 ? colors.good : colors.muted }]}>
-								{Math.round(item.score * 100)}
-							</Text>
-						</Pressable>
-					);
-				}}
+				data={items}
+				numColumns={2}
+				keyExtractor={(item, i) => `${item.product.id}-${i}`}
+				columnWrapperStyle={styles.columns}
+				contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 40, gap: 26 }}
+				ListHeaderComponent={
+					<View style={styles.header}>
+						{photo ? <Image source={{ uri: photo }} style={styles.photo} /> : null}
+						<View style={styles.headerText}>
+							<Text style={styles.title}>{title}</Text>
+							{subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+						</View>
+					</View>
+				}
+				renderItem={({ item }) => (
+					<ProductCard
+						product={item.product}
+						manifest={manifest}
+						width={card}
+						onPress={() => onProduct(item)}
+						badge={item.score !== undefined ? <MatchBadge score={item.score} /> : undefined}
+					/>
+				)}
 			/>
-
-			<View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-				<Pressable style={styles.button} onPress={onBack}>
-					<Text style={styles.buttonText}>Scan another</Text>
-				</Pressable>
-			</View>
 		</View>
 	);
 }
 
 const styles = StyleSheet.create({
 	screen: { flex: 1, backgroundColor: colors.background },
-	header: { flexDirection: "row", gap: 14, padding: 16, alignItems: "center" },
-	photo: { width: 96, height: 96, borderRadius: 12, backgroundColor: colors.card },
-	textQuery: { padding: 8, justifyContent: "center" },
-	textQueryText: { color: colors.text, fontSize: 13 },
-	headerText: { flex: 1, gap: 2 },
-	title: { color: colors.text, fontSize: 20, fontWeight: "700" },
-	muted: { color: colors.muted, fontSize: 13 },
-	timing: { color: colors.muted, fontSize: 12, marginTop: 4 },
-	row: {
-		flexDirection: "row",
-		alignItems: "center",
-		gap: 12,
-		backgroundColor: colors.card,
-		borderRadius: 14,
-		padding: 10,
-		marginTop: 10,
-	},
-	variant: { marginTop: 2, borderTopLeftRadius: 4, borderTopRightRadius: 4 },
-	thumb: { width: 72, height: 72, borderRadius: 8, backgroundColor: "white" },
-	rowText: { flex: 1, gap: 2 },
-	product: { color: colors.text, fontSize: 15, fontWeight: "600" },
-	meta: { color: colors.text, fontSize: 13 },
-	category: { color: colors.muted, fontSize: 12 },
-	score: { fontSize: 13, fontWeight: "700", width: 28, textAlign: "right" },
-	footer: {
-		position: "absolute",
-		left: 0,
-		right: 0,
-		bottom: 0,
-		paddingHorizontal: 16,
-		paddingTop: 12,
-		backgroundColor: colors.background,
-	},
-	button: { backgroundColor: colors.accent, borderRadius: 14, paddingVertical: 15, alignItems: "center" },
-	buttonText: { color: colors.text, fontSize: 16, fontWeight: "700" },
+	top: { paddingHorizontal: 20, paddingBottom: 8 },
+	header: { flexDirection: "row", alignItems: "center", gap: 16, paddingVertical: 12 },
+	photo: { width: 84, height: 84, borderRadius: 4, backgroundColor: colors.sheet },
+	headerText: { flex: 1, gap: 4 },
+	title: { color: colors.text, fontFamily: fonts.bold, fontSize: 30, lineHeight: 38 },
+	subtitle: { color: colors.muted, fontFamily: fonts.regular, fontSize: 14 },
+	columns: { gap: 14 },
 });

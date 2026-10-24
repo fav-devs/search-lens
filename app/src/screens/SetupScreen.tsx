@@ -1,12 +1,13 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, BackHandler, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, BackHandler, Modal, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ModelState } from "../App";
 import { checkAgainstPC, importIndex, type LensIndex } from "../lens-index";
 import { downloadModel, MODEL } from "../model";
-import { colors } from "../theme";
+import { colors, fonts } from "../theme";
+import { CircleButton, PillButton, TAB_BAR_SPACE } from "../ui";
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -17,6 +18,7 @@ export function SetupScreen({
 	index,
 	onIndex,
 	onClose,
+	inTabs,
 }: {
 	model: ModelState;
 	setModel: (state: ModelState) => void;
@@ -25,6 +27,8 @@ export function SetupScreen({
 	onIndex: (index: LensIndex) => void;
 	/** Missing until the model and an index are both ready. */
 	onClose?: () => void;
+	/** Shown as a tab, above the tab bar. */
+	inTabs?: boolean;
 }) {
 	const insets = useSafeAreaInsets();
 	const [address, setAddress] = useState("");
@@ -89,16 +93,12 @@ export function SetupScreen({
 	return (
 		<ScrollView
 			style={styles.screen}
-			contentContainerStyle={{ padding: 20, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32, gap: 16 }}
+			contentContainerStyle={{ padding: 20, paddingTop: insets.top + 16, paddingBottom: insets.bottom + (inTabs ? TAB_BAR_SPACE : 32), gap: 16 }}
 			keyboardShouldPersistTaps="handled"
 		>
 			<View style={styles.heading}>
-				<Text style={styles.title}>Setup</Text>
-				{onClose ? (
-					<Pressable onPress={onClose} hitSlop={12}>
-						<Text style={styles.link}>Done</Text>
-					</Pressable>
-				) : null}
+				<Text style={styles.title}>{onClose ? "Setup" : "Hej! Let’s get set up"}</Text>
+				{onClose && !inTabs ? <CircleButton icon="close" onPress={onClose} /> : null}
 			</View>
 
 			<View style={styles.card}>
@@ -168,7 +168,7 @@ export function SetupScreen({
 				</View>
 			) : null}
 
-			{onClose ? <Button title="Start scanning products" onPress={onClose} /> : null}
+			{onClose && !inTabs ? <PillButton title="Start" onPress={onClose} /> : null}
 
 			<QrScanner
 				visible={scanning}
@@ -217,17 +217,13 @@ function QrScanner({ visible, onClose, onScan }: { visible: boolean; onClose: ()
 }
 
 function Button({ title, onPress, small }: { title: string; onPress: () => void; small?: boolean }) {
-	return (
-		<Pressable onPress={onPress} style={({ pressed }) => [styles.button, small && styles.small, pressed && { opacity: 0.7 }]}>
-			<Text style={styles.buttonText}>{title}</Text>
-		</Pressable>
-	);
+	return <PillButton title={title} onPress={onPress} style={small ? styles.small : undefined} />;
 }
 
 function Status({ text, spinner, good }: { text: string; spinner?: boolean; good?: boolean }) {
 	return (
 		<View style={styles.status}>
-			{spinner ? <ActivityIndicator color={colors.muted} /> : <View style={[styles.dot, { backgroundColor: good ? colors.good : colors.warn }]} />}
+			{spinner ? <ActivityIndicator color={colors.muted} /> : <View style={[styles.dot, { backgroundColor: good ? colors.green : colors.warn }]} />}
 			<Text style={styles.body}>{text}</Text>
 		</View>
 	);
@@ -246,31 +242,29 @@ function Progress({ fraction, label }: { fraction: number; label: string }) {
 
 const styles = StyleSheet.create({
 	screen: { flex: 1, backgroundColor: colors.background },
-	heading: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-	title: { color: colors.text, fontSize: 28, fontWeight: "800" },
-	link: { color: colors.accent, fontSize: 16, fontWeight: "700" },
-	card: { backgroundColor: colors.card, borderRadius: 16, padding: 16, gap: 12 },
-	step: { color: colors.text, fontSize: 17, fontWeight: "700" },
-	muted: { color: colors.muted, fontSize: 14, lineHeight: 20 },
-	body: { color: colors.text, fontSize: 14, lineHeight: 20, flexShrink: 1 },
-	error: { color: colors.warn, fontSize: 13, lineHeight: 19 },
+	heading: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+	title: { color: colors.text, fontFamily: fonts.bold, fontSize: 34, lineHeight: 42, flex: 1 },
+	card: { backgroundColor: colors.sheet, borderRadius: 16, padding: 20, gap: 14 },
+	step: { color: colors.text, fontFamily: fonts.bold, fontSize: 19 },
+	muted: { color: colors.muted, fontFamily: fonts.regular, fontSize: 15, lineHeight: 22 },
+	body: { color: colors.text, fontFamily: fonts.regular, fontSize: 15, lineHeight: 22, flexShrink: 1 },
+	error: { color: colors.warn, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20 },
 	status: { flexDirection: "row", alignItems: "center", gap: 10 },
 	dot: { width: 10, height: 10, borderRadius: 5 },
-	button: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 13, alignItems: "center" },
-	small: { paddingHorizontal: 18, paddingVertical: 11 },
-	buttonText: { color: colors.text, fontSize: 15, fontWeight: "700" },
+	small: { minHeight: 52, paddingHorizontal: 22 },
 	addressRow: { flexDirection: "row", gap: 10, alignItems: "center" },
 	input: {
 		flex: 1,
-		backgroundColor: colors.background,
+		backgroundColor: colors.field,
 		color: colors.text,
-		borderRadius: 12,
-		paddingHorizontal: 14,
-		paddingVertical: 11,
-		fontSize: 15,
+		fontFamily: fonts.regular,
+		borderRadius: 999,
+		paddingHorizontal: 20,
+		height: 52,
+		fontSize: 16,
 	},
-	track: { height: 8, borderRadius: 4, backgroundColor: colors.background, overflow: "hidden" },
-	bar: { height: 8, backgroundColor: colors.accent },
+	track: { height: 8, borderRadius: 4, backgroundColor: colors.field, overflow: "hidden" },
+	bar: { height: 8, backgroundColor: colors.blue },
 	scanner: { flex: 1, backgroundColor: "black", justifyContent: "flex-end" },
-	scannerBar: { padding: 20, paddingBottom: 48, gap: 12, backgroundColor: "rgba(0,0,0,0.6)" },
+	scannerBar: { padding: 24, paddingBottom: 48, gap: 14, backgroundColor: "rgba(0,0,0,0.6)" },
 });

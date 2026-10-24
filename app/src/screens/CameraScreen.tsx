@@ -1,42 +1,25 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRef, useState } from "react";
-import {
-	ActivityIndicator,
-	KeyboardAvoidingView,
-	type LayoutRectangle,
-	Platform,
-	Pressable,
-	StyleSheet,
-	Text,
-	TextInput,
-	View,
-} from "react-native";
+import { ActivityIndicator, type LayoutRectangle, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { LensIndex } from "../lens-index";
-import { colors } from "../theme";
+import { colors, fonts } from "../theme";
+import { CircleButton, PillButton } from "../ui";
 
 export function CameraScreen({
-	index,
-	backend,
 	busy,
 	onPhoto,
-	onText,
-	onSettings,
+	onClose,
 }: {
-	index: LensIndex;
-	backend: string;
 	busy: boolean;
 	onPhoto: (uri: string, view: { width: number; height: number }, guide: number) => void;
-	onText: (text: string) => void;
-	onSettings: () => void;
+	onClose: () => void;
 }) {
 	const insets = useSafeAreaInsets();
 	const [permission, requestPermission] = useCameraPermissions();
 	const camera = useRef<CameraView>(null);
 	const [layout, setLayout] = useState<LayoutRectangle | null>(null);
 	const [ready, setReady] = useState(false);
-	const [text, setText] = useState("");
-	const guide = layout ? Math.min(layout.width - 48, layout.height - 320, 420) : 0;
+	const guide = layout ? Math.min(layout.width - 56, layout.height - 360, 440) : 0;
 
 	const shoot = async () => {
 		if (!camera.current || !layout || busy) return;
@@ -47,110 +30,50 @@ export function CameraScreen({
 	if (!permission) return <View style={styles.screen} />;
 	if (!permission.granted) {
 		return (
-			<View style={[styles.screen, styles.centre]}>
-				<Text style={styles.title}>Camera</Text>
-				<Text style={styles.muted}>Product Lens needs the camera to see the product.</Text>
-				<Pressable style={styles.button} onPress={requestPermission}>
-					<Text style={styles.buttonText}>Allow camera</Text>
-				</Pressable>
+			<View style={[styles.screen, styles.ask, { paddingTop: insets.top + 80 }]}>
+				<Text style={styles.title}>Allow the camera</Text>
+				<Text style={styles.body}>Snap and find looks at the product through the camera. Photos stay on this phone.</Text>
+				<PillButton title="Allow camera" onPress={requestPermission} />
+				<PillButton title="Not now" variant="dark" onPress={onClose} />
 			</View>
 		);
 	}
 
 	return (
-		<KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-			<View style={StyleSheet.absoluteFill} onLayout={(e) => setLayout(e.nativeEvent.layout)}>
-				<CameraView ref={camera} style={StyleSheet.absoluteFill} facing="back" onCameraReady={() => setReady(true)} />
-			</View>
+		<View style={styles.screen} onLayout={(e) => setLayout(e.nativeEvent.layout)}>
+			<CameraView ref={camera} style={StyleSheet.absoluteFill} facing="back" onCameraReady={() => setReady(true)} />
 
 			{layout ? (
-				<View pointerEvents="none" style={[styles.guide, { width: guide, height: guide, left: (layout.width - guide) / 2, top: (layout.height - guide) / 2 }]} />
+				<View
+					pointerEvents="none"
+					style={[styles.guide, { width: guide, height: guide, left: (layout.width - guide) / 2, top: (layout.height - guide) / 2 }]}
+				/>
 			) : null}
 
-			<View style={[styles.top, { paddingTop: insets.top + 8 }]}>
-				<View>
-					<Text style={styles.title}>Product Lens</Text>
-					<Text style={styles.muted}>
-						{index.manifest.products.length.toLocaleString()} products · {backend}
-					</Text>
-				</View>
-				<Pressable onPress={onSettings} hitSlop={12} style={styles.chip}>
-					<Text style={styles.chipText}>Setup</Text>
-				</Pressable>
+			<CircleButton icon="close" variant="overlay" onPress={onClose} style={{ position: "absolute", top: insets.top + 10, left: 20 }} />
+
+			<View style={[styles.hint, { top: insets.top + 84 }]}>
+				<Text style={styles.hintText}>{busy ? "Finding it…" : "Fill the square with the product"}</Text>
 			</View>
 
-			<View style={styles.fill} pointerEvents="none" />
-			<View style={[styles.bottom, { paddingBottom: insets.bottom + 16 }]}>
-				<Text style={styles.hint}>Fill the square with the product</Text>
-				<Pressable
-					onPress={shoot}
-					disabled={!ready || busy}
-					style={({ pressed }) => [styles.shutter, (pressed || busy) && { opacity: 0.6 }]}
-				>
-					{busy ? <ActivityIndicator color={colors.background} /> : <View style={styles.shutterInner} />}
+			<View style={[styles.bottom, { paddingBottom: insets.bottom + 28 }]}>
+				<Pressable onPress={shoot} disabled={!ready || busy} style={({ pressed }) => [styles.shutter, pressed && { transform: [{ scale: 0.94 }] }]}>
+					{busy ? <ActivityIndicator color={colors.tileText} /> : <View style={styles.shutterInner} />}
 				</Pressable>
-				<TextInput
-					style={styles.input}
-					value={text}
-					onChangeText={setText}
-					placeholder="…or describe it: “white 4-drawer dresser”"
-					placeholderTextColor={colors.muted}
-					returnKeyType="search"
-					editable={!busy}
-					onSubmitEditing={() => text.trim() && onText(text.trim())}
-				/>
 			</View>
-		</KeyboardAvoidingView>
+		</View>
 	);
 }
 
 const styles = StyleSheet.create({
 	screen: { flex: 1, backgroundColor: "black" },
-	centre: { alignItems: "center", justifyContent: "center", padding: 32, gap: 12 },
-	top: {
-		position: "absolute",
-		left: 0,
-		right: 0,
-		top: 0,
-		paddingHorizontal: 20,
-		paddingBottom: 12,
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		backgroundColor: "rgba(0,0,0,0.45)",
-	},
-	title: { color: colors.text, fontSize: 20, fontWeight: "700" },
-	muted: { color: colors.muted, fontSize: 13 },
-	chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.15)" },
-	chipText: { color: colors.text, fontWeight: "600" },
-	guide: { position: "absolute", borderWidth: 2, borderColor: "rgba(255,255,255,0.9)", borderRadius: 20 },
-	fill: { flex: 1 },
-	bottom: {
-		paddingHorizontal: 20,
-		paddingTop: 12,
-		alignItems: "center",
-		gap: 14,
-		backgroundColor: "rgba(0,0,0,0.45)",
-	},
-	hint: { color: colors.text, fontSize: 14 },
-	shutter: {
-		width: 76,
-		height: 76,
-		borderRadius: 38,
-		backgroundColor: colors.text,
-		alignItems: "center",
-		justifyContent: "center",
-	},
-	shutterInner: { width: 64, height: 64, borderRadius: 32, borderWidth: 3, borderColor: colors.background },
-	input: {
-		alignSelf: "stretch",
-		backgroundColor: "rgba(255,255,255,0.12)",
-		color: colors.text,
-		borderRadius: 12,
-		paddingHorizontal: 14,
-		paddingVertical: 12,
-		fontSize: 15,
-	},
-	button: { backgroundColor: colors.accent, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
-	buttonText: { color: colors.text, fontWeight: "700" },
+	ask: { backgroundColor: colors.background, paddingHorizontal: 32, gap: 16 },
+	title: { color: colors.text, fontFamily: fonts.bold, fontSize: 34 },
+	body: { color: colors.text, fontFamily: fonts.regular, fontSize: 18, lineHeight: 26, marginBottom: 16 },
+	guide: { position: "absolute", borderWidth: 3, borderColor: "white", borderRadius: 24 },
+	hint: { position: "absolute", alignSelf: "center", backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
+	hintText: { color: colors.text, fontFamily: fonts.semibold, fontSize: 15 },
+	bottom: { position: "absolute", left: 0, right: 0, bottom: 0, alignItems: "center" },
+	shutter: { width: 84, height: 84, borderRadius: 42, backgroundColor: "white", alignItems: "center", justifyContent: "center" },
+	shutterInner: { width: 70, height: 70, borderRadius: 35, borderWidth: 3, borderColor: colors.tileText },
 });

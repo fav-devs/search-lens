@@ -186,3 +186,22 @@ export async function checkAgainstPC(
 	cache.delete();
 	return { similarity: similarity / samples, foundFirst, samples, msPerPicture: embedMs / samples };
 }
+
+/** Picture `row`'s vector as the PC stored it, so "similar products" needs no model run. */
+export function pictureVector(index: LensIndex, row: number): number[] {
+	const { dims } = index.manifest;
+	const scale = index.scales[row];
+	return Array.from(index.vectors.subarray(row * dims, (row + 1) * dims), (value) => value * scale);
+}
+
+/** The categories with the most products, each with one product to picture it. */
+export function topCategories(index: LensIndex, limit: number): { name: string; count: number; product: Product }[] {
+	const groups = new Map<string, { name: string; count: number; product: Product }>();
+	for (const product of index.manifest.products) {
+		if (!product.category) continue;
+		const group = groups.get(product.category);
+		if (group) group.count++;
+		else groups.set(product.category, { name: product.category, count: 1, product });
+	}
+	return [...groups.values()].sort((a, b) => b.count - a.count).slice(0, limit);
+}
