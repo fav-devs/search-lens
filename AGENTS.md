@@ -17,6 +17,7 @@ worse; nothing errors. Change them together, on both sides, and check with **Set
 | Text query prefix | `QUERY_PREFIX` in `pc/lens/index.py`, written to `manifest.queryPrefix` | read from the manifest |
 | Detail files | `DETAIL_SHARDS`, `int(id) % shards` | `manifest.details.shards`, `Number(id) % shards` |
 | Model | `google/embeddinggemma-2` | `embeddinggemma-2-text-vision-440m.litertlm` (`app/src/model.ts`) |
+| Pack format (`SLPACK1`) | `pc/lens/pack.py` | `app/src/bundled.ts` |
 
 The file format itself is specified in [docs/index-format.md](docs/index-format.md); update it with any format change.
 
@@ -27,6 +28,11 @@ The file format itself is specified in [docs/index-format.md](docs/index-format.
 - **LiteRT-LM** is pinned to the same version in `app/modules/gemma-embed/android/build.gradle` and
   `app/modules/gemma-embed/ios/GemmaEmbed.podspec`. Upgrading it can change the Kotlin version Android needs
   (`android.kotlinVersion` in `app/app.json`); see [docs/app.md](docs/app.md#build-plumbing).
+- **ONNX Runtime** is pinned to 1.24.3 in both `android/build.gradle` and `GemmaEmbed.podspec`, and in
+  `tools/scene-check`, so the PC tool runs the room scan exactly as phones do.
+- The room scan (`app/src/scene/`) stays plain TypeScript with no React Native imports outside `models.ts` and
+  `room.ts`, so `tools/scene-check` can run it in Node. Changing `vocabulary.ts` means regenerating its token ids
+  (see the comment at its top).
 - The app keeps reading older index versions people may still have imported (version 1 has no details).
 - Don't present data the dataset doesn't have (stock, reviews) as if it were real.
 
@@ -37,6 +43,10 @@ cd app && npx tsc --noEmit                 # app types
 cd pc && uv run lens --data /tmp/t download --category Lighting --limit 40 \
       && uv run lens --data /tmp/t index --cpu \
       && uv run lens --data /tmp/t search "black desk lamp"      # PC end to end, on the CPU
+```
+
+```sh
+cd tools/scene-check && npm run models && npm run scan -- photo.jpg    # room scan, same code as the phone
 ```
 
 There are no automated tests yet, and the app has not run on a device; the first EAS build is the real check.

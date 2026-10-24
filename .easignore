@@ -1,0 +1,20 @@
+# What EAS Build leaves out of the upload. It replaces .gitignore for EAS, so the index built into the app
+# (app/assets/searchlens.pack, ignored by git) is uploaded and included.
+
+# PC tool
+pc/.venv/
+pc/data/
+__pycache__/
+*.egg-info/
+
+# App
+app/node_modules/
+app/.expo/
+app/android/
+app/ios/
+app/dist/
+app/expo-env.d.ts
+*.tsbuildinfo
+*.part
+
+.DS_Store

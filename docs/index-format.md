@@ -88,6 +88,37 @@ object keyed by product id:
 Any list can be empty and `description` can be `""` (669 products have none). Files are about 0.5 MB each, 31 MB in
 all.
 
+## The pack: searchlens.pack
+
+`lens bundle` (`pc/lens/pack.py`) puts all of the above in one file for building into the app; the app unpacks it
+on first launch (`app/src/bundled.ts`) into the same folder a Wi-Fi import uses.
+
+```
+offset 0          "SLPACK1\n"                       8 bytes
+offset 8          header size                       uint32, little-endian
+offset 12         header                            ASCII JSON
+offset 12 + size  the entries' bytes, back to back
+```
+
+The header:
+
+```json
+{
+  "format": "search-lens-index",
+  "version": 2,
+  "created": "2026-10-24T19:47:39+00:00",
+  "entries": [
+    { "name": "manifest.json", "offset": 0, "size": 10538041 },
+    { "name": "vectors.bin", "offset": 10538041, "size": 14426844 },
+    { "name": "details/00.json", "offset": 24964885, "size": 512404 },
+    …
+  ]
+}
+```
+
+Entry offsets count from the end of the header. `created` is the manifest's: the app compares it with the index it
+already has to decide whether an app update brought a newer catalogue.
+
 ## Changing the format
 
 - Bump `version` for any change a reader has to know about, and keep the app able to read the versions people may

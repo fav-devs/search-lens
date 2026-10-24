@@ -1,0 +1,15 @@
+{
+	"name": "scene-check",
+	"private": true,
+	"description": "Run the app's room scan (app/src/scene) on a photo on the PC, with onnxruntime-node in place of the phone's native bridge.",
+	"type": "module",
+	"scripts": {
+		"models": "node models.mjs",
+		"scan": "tsx scan.ts"
+	},
+	"dependencies": {
+		"jpeg-js": "0.4.4",
+		"onnxruntime-node": "1.24.3",
+		"tsx": "^4.20.0"
+	}
+}

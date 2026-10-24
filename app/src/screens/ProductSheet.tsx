@@ -15,7 +15,7 @@ import {
 	productLink,
 } from "../lens-index";
 import { colors, fonts } from "../theme";
-import { CircleButton, MatchBadge, PillButton, Price } from "../ui";
+import { CircleButton, MatchBadge, PillButton, Price, Stepper } from "../ui";
 
 export interface OpenProduct {
 	product: Product;
@@ -30,6 +30,9 @@ export function ProductSheet(props: {
 	country: Country;
 	saved: boolean;
 	onToggleSaved: () => void;
+	/** How many of this product are in the basket (0 = none). */
+	inBasket: number;
+	onBasket: (product: Product, quantity: number) => void;
 	onClose: () => void;
 	onSimilar: (product: Product) => void;
 	onCategory: (category: string) => void;
@@ -51,6 +54,8 @@ function ProductPage({
 	country,
 	saved,
 	onToggleSaved,
+	inBasket,
+	onBasket,
 	onClose,
 	onSimilar,
 	onCategory,
@@ -61,6 +66,7 @@ function ProductPage({
 	// undefined while loading, null when this index has no details (built before the PC tool wrote them).
 	const [details, setDetails] = useState<ProductDetails | null | undefined>(undefined);
 	const [expanded, setExpanded] = useState<"details" | "materials" | null>("details");
+	const [quantity, setQuantity] = useState(Math.max(1, inBasket));
 	const link = productLink(product.url, country);
 	const openInIkea = () => Linking.openURL(link);
 
@@ -72,7 +78,7 @@ function ProductPage({
 
 	return (
 		<View style={styles.screen}>
-			<ScrollView contentContainerStyle={{ paddingBottom: 170 + insets.bottom }} bounces={false}>
+			<ScrollView contentContainerStyle={{ paddingBottom: 200 + insets.bottom }} bounces={false}>
 				<View style={[styles.photo, { height: width * 1.05, paddingTop: insets.top }]}>
 					<Image source={{ uri: pictureUrl(index.manifest, product.picture, "m") }} style={styles.fill} contentFit="contain" transition={150} />
 				</View>
@@ -137,7 +143,7 @@ function ProductPage({
 					<View style={styles.idBlock}>
 						<Text style={styles.subheading}>Product ID</Text>
 						<Field label="Article number" value={articleNumber(product.id)} />
-						<Field label="IKEA.com" value={link.replace(/^https:\/\/www\./, "")} onPress={openInIkea} />
+						<Field label="IKEA.com (opens the IKEA app if it’s installed)" value={link.replace(/^https:\/\/www\./, "")} onPress={openInIkea} />
 					</View>
 				</View>
 			</ScrollView>
@@ -151,8 +157,15 @@ function ProductPage({
 			/>
 
 			<View style={[styles.footer, { paddingBottom: insets.bottom + 14 }]}>
-				<PillButton title="Open in IKEA" onPress={openInIkea} />
-				<Text style={styles.footnote}>Opens the IKEA app if it’s installed, otherwise IKEA.com</Text>
+				<View style={styles.buyRow}>
+					<Stepper value={quantity} onChange={(n) => setQuantity(Math.max(1, Math.min(99, n)))} removes={false} />
+					<PillButton
+						title={inBasket === 0 ? "Add to basket" : inBasket === quantity ? `In basket (${inBasket})` : "Update basket"}
+						onPress={() => onBasket(product, quantity)}
+						style={{ flex: 1 }}
+					/>
+				</View>
+				<PillButton title="Open in IKEA" variant="dark" onPress={openInIkea} />
 			</View>
 		</View>
 	);
@@ -254,5 +267,5 @@ const styles = StyleSheet.create({
 		gap: 10,
 		backgroundColor: colors.sheet,
 	},
-	footnote: { color: colors.muted, fontFamily: fonts.regular, fontSize: 13, textAlign: "center" },
+	buyRow: { flexDirection: "row", alignItems: "center", gap: 12 },
 });

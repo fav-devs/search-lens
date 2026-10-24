@@ -22,15 +22,23 @@ bundle id and Android package are `me.favdevs.searchlens`.
 
 To build locally instead, `npx expo run:android` or `npx expo run:ios` (needs Android Studio or Xcode).
 
+**A build that works on its own.** Run `uv run lens bundle` on the PC before `eas build` and the catalogue goes inside
+the app (`app/assets/searchlens.pack`, about 55 MB). It is unpacked the first time the app opens: no PC, no QR code.
+Without it the app builds as before and gets its index over Wi-Fi. Either way the model (388 MB) and, for room scan,
+its two models (193 MB) download from Hugging Face the first time they're needed, and product pictures load from
+ikea.com.
+
 ## First launch
 
 Until the model and an index are both in place, the app opens on **Setup**:
 
 1. **Model.** Downloads `embeddinggemma-2-text-vision-440m.litertlm` (388 MB) from Hugging Face, keeping the screen
    awake. Then it loads, trying the GPU first; Setup shows where it ended up: *GPU*, *GPU + CPU vision* or *CPU*.
-2. **Products from the PC.** Run `uv run lens` or `uv run lens serve` on the PC, tap **Scan the PC's code** and point
-   the phone at the terminal, or type the address it prints. The phone fetches `manifest.json`, `vectors.bin` and
-   the 64 detail files. The previous index stays in place until the new one has arrived whole.
+2. **Products.** A build with the catalogue inside unpacks it here by itself. Otherwise run `uv run lens` or
+   `uv run lens serve` on the PC, tap **Scan the PC's code** and point the phone at the terminal, or type the address it
+   prints. The phone fetches `manifest.json`, `vectors.bin` and the 64 detail files. The previous index stays in place
+   until the new one has arrived whole. An index imported from the PC is kept even when an app update brings a
+   built-in one.
 3. **Check** (optional, needs internet). Embeds 6 random catalogue pictures on the phone, the same files the PC
    embedded, and compares them with the index. *Phone and PC agree* means an average similarity above 0.95; each
    picture should also come back as its own best match. Below 0.85 something differs between the two sides.
@@ -41,12 +49,14 @@ links) or Canada (ikea.com/ca).
 ## Screens
 
 ```
-Tabs (floating bar): Home · Search · Scan · You
+Tabs (floating bar): Home · Search · Scan · Basket · You
   Home      "Hej!", the Snap & find card, Recently found, Saved, a few products to try
   Search    search by description, Products (biggest categories) / Recent searches
+  Basket    what's been added, with quantities, a total and Share list
   You       Setup
 
-Scan  →  Scan intro (first time only)  →  Camera  →  Best matches  →  Product page
+Scan  →  Scan intro (first time only)  →  Camera, Product mode  →  Best matches  →  Product page
+                                          Camera, Room mode     →  Room          →  Product page
 Search text  →  results  →  Product page
 Category tile or row  →  category list  →  Product page
 Product page  →  Similar products  →  results  →  Product page
@@ -57,10 +67,12 @@ Product page  →  Similar products  →  results  →  Product page
 | Home | `src/screens/HomeScreen.tsx` | Recently found and Saved last until the app closes. |
 | Search | `src/screens/SearchScreen.tsx` | Typed searches embed the text with the manifest's `queryPrefix`. |
 | Scan intro | `src/screens/ScanIntroScreen.tsx` | Shown until *Continue* is tapped once. |
-| Camera | `src/screens/CameraScreen.tsx` | The photo is cropped to the square guide (`src/photo.ts`), resized to 448 px and embedded. Its results replace the camera, so Back goes to where the scan started. |
+| Camera | `src/screens/CameraScreen.tsx` | **Product**: the photo is cropped to the square guide (`src/photo.ts`), resized to 448 px and embedded. **Room**: the whole photo goes to the room scan ([room-scan.md](room-scan.md)); the first time, it offers to download its models. Results replace the camera, so Back goes to where the scan started. |
+| Room | `src/screens/RoomScreen.tsx` | The photo with each found product's outline in colour and a numbered dot. Tap a dot to jump to its row, or a product in the photo to open it. Each row: the cutout, the best match with its score, add to / remove from basket, and other matches. |
 | Results, categories | `src/screens/ResultsScreen.tsx` | Two-column product grid with the match score. Products sharing a picture share its score. |
-| Product page | `src/screens/ProductSheet.tsx` | Name, price, article number, Product details, Materials & care, Similar products, category path, Product ID, **Open in IKEA**. |
-| Setup | `src/screens/SetupScreen.tsx` | Model, index import, Check, Product links. |
+| Product page | `src/screens/ProductSheet.tsx` | Name, price, article number, Product details, Materials & care, Similar products, category path, Product ID, quantity and **Add to basket**, **Open in IKEA**. |
+| Basket | `src/screens/BasketScreen.tsx` | IKEA-style list with quantity steppers and the total. **Share list** sends names, article numbers, quantities and prices as text; the app can't add to IKEA's own cart. |
+| Setup | `src/screens/SetupScreen.tsx` | Model, index (built-in or from the PC), Check, Product links. |
 
 Navigation is a tab plus a stack of screens in `src/App.tsx`; the product page is a modal. Android's Back closes the
 top screen, then returns to Home, then leaves the app.
@@ -74,9 +86,12 @@ Everything lives in the app's documents folder:
 
 ```
 model/embeddinggemma-2-text-vision-440m.litertlm   the model (a .part file while downloading)
+scene-models/                                       the room scan's OWL-ViT and EdgeTAM models
 index/manifest.json, index/vectors.bin, index/details/NN.json
-index/incoming/                                     an import in progress
+index/source.json                                   { "source": "pc" | "bundle", "created" }
+index/incoming/                                     an import or unpack in progress
 settings.json                                       { "country": "us" | "ca" }
+basket.json                                         { "<product id>": quantity }
 scan-intro-seen                                     present once the scan intro has been dismissed
 ```
 
@@ -93,10 +108,15 @@ page needs them and kept for the session.
 | `embedImage(path, outputSize)` | A JPEG or PNG file → unit-length vector of `outputSize` numbers, at the loaded vision budget. |
 | `embedText(text, outputSize)` | Text (prefix already added) → unit-length vector. |
 | `close()` | Frees the model. |
+| `createOnnxSession(path)` / `runOnnx(id, inputs, outputs)` / `onnxRelease(id)` | Any ONNX model on ONNX Runtime 1.24.3, for the room scan. Values travel as float32 in one ArrayBuffer each way; an input the model declares as int32 or int64 is converted natively. |
 
-Android: `android/src/main/java/lens/gemma/GemmaEmbedModule.kt`. iOS: `ios/GemmaEmbedModule.swift` (Expo binding)
-and `ios/GemmaEngine.swift` (LiteRT-LM, kept separate so only its names are in scope). Keep the LiteRT-LM version the
-same in `android/build.gradle` and `ios/GemmaEmbed.podspec`.
+Android: `android/src/main/java/lens/gemma/GemmaEmbedModule.kt` and `OnnxRunner.kt`. iOS: `ios/GemmaEmbedModule.swift`
+(Expo binding), `ios/GemmaEngine.swift` (LiteRT-LM, kept separate so only its names are in scope) and
+`ios/LensOnnx.mm` + `LensOnnxCore.hpp` (ONNX Runtime in C++). The ONNX code comes from the Sondr app's model lab.
+`OnnxRunner.kt` and `LensOnnxCore.hpp` have been run against the real room-scan models with the desktop builds of ONNX
+Runtime 1.24.3 and give the same results as ONNX Runtime does from Python and Node; the Expo bindings and the Objective-C++
+wrapper around them haven't been built for a phone yet.
+Keep the LiteRT-LM and ONNX Runtime versions the same in `android/build.gradle` and `ios/GemmaEmbed.podspec`.
 
 ## Build plumbing
 
@@ -116,6 +136,13 @@ LiteRT-LM needs a few things an Expo module can't declare on its own:
   `usesCleartextTraffic`; iOS with `NSAllowsLocalNetworking` and `NSAllowsArbitraryLoads`, and asks for local network
   access the first time.
 
+- **ONNX Runtime.** Android uses `onnxruntime-android`, iOS the `onnxruntime-c` pod (the C/C++ API; CocoaPods won't
+  let a Swift pod depend on `onnxruntime-objc`), both 1.24.3. `onnxruntime-react-native` isn't used: it reaches the
+  JavaScript runtime through the old architecture's bridge, which React Native 0.88 no longer has.
+- **The built-in index.** `metro.config.js` resolves `searchlens-bundled-index` to `assets/searchlens.pack` as an asset
+  when the file exists, and to `src/no-bundled-index.js` (null) when it doesn't. `.easignore` at the repository root
+  replaces `.gitignore` for EAS uploads so the pack, which git ignores, still reaches the build.
+
 The plugin and the iOS script come from the Sondr app (fav-devs/ai-cut), whose model lab runs the same LiteRT-LM.
 
 ## Troubleshooting
@@ -133,4 +160,7 @@ The app has not run on a device yet, so these are the likeliest first-build prob
 | Check is below 0.95 | Was the index built by this version of the PC tool (140 vision tokens)? Re-run `uv run lens` and import again. If it's still low, the phone's runtime prepares pictures differently from the PC, so tell whoever maintains this. |
 | Product page: "This index has no product details" | The index was built before details existed. Re-run `uv run lens` on the PC and import again. |
 | Thumbnails don't load | They come from ikea.com, so the phone needs internet. Search itself works offline. |
+| Room scan: "No ONNX session" or a crash loading the models | Check `onnxruntime-android` / `onnxruntime-c` made it into the build (`android/build.gradle`, `GemmaEmbed.podspec`). Delete `scene-models/` (the app's data) to download the models again. |
+| Room scan finds nothing that's clearly there | It only keeps things that match the catalogue well (`MIN_MATCH` in `src/scene/room.ts`) and that the detector was told to look for (`src/scene/vocabulary.ts`). Try `tools/scene-check` on the same photo to see what it found and skipped. |
+| The app didn't pick up the built-in catalogue | It's only installed when there's no index yet or the current one came from an older built-in one. An index imported from the PC is kept. |
 | Open in IKEA opens the browser, not the app | The IKEA app isn't installed, or its link handling is off (Android: Settings → Apps → IKEA → Open by default). |

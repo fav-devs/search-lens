@@ -4,8 +4,12 @@ Take a photo of an IKEA product that has lost its tag, and the phone lists the c
 size, price and article number. Tap one for its product page (description, good to know, materials and care, category,
 article number) and **Open in IKEA**, which opens the IKEA app when it's installed and IKEA.com when it isn't.
 
+**Room scan:** photograph a desk, a shelf or a room and it outlines the things in it, numbers them on the photo and
+lists the closest product for each, to open or put in the basket.
+
 Everything runs on-device with **EmbeddingGemma 2**, Google's open multimodal embedding model. Photos and text land
-in one vector space, so you can also type "white 4-drawer dresser with knobs".
+in one vector space, so you can also type "white 4-drawer dresser with knobs". Room scan adds OWL-ViT to find things
+and EdgeTAM to outline them ([docs/room-scan.md](docs/room-scan.md)).
 
 ```
 PC (your NVIDIA GPU)                                     Phone (Expo app)
@@ -44,6 +48,7 @@ uv run lens      # download → index → serve, resuming wherever a previous ru
 | `lens index [--dims 512] [--batch 16]` | Embeds every picture on the GPU and writes `data/index/` (vectors, product list, product details). Prints which GPU it found. Stopping and running again picks up where it was; pictures already embedded aren't embedded again. |
 | `lens search "black desk lamp"` / `lens search photo.jpg` | Tries the index on the PC. |
 | `lens serve [--port 8765]` | Shares `data/index/` on the Wi-Fi and prints the QR code. Allow Python through the firewall if Windows asks. |
+| `lens bundle [--app ../app]` | Puts the index inside the app (`app/assets/searchlens.pack`, ~55 MB), so the next build works without the PC. |
 
 The first `lens index` downloads `google/embeddinggemma-2` (~1.5 GB) from Hugging Face.
 
@@ -62,15 +67,19 @@ npx eas-cli build --profile development --platform android   # or ios; `preview`
 npx expo start --dev-client                                    # for the development build
 ```
 
+**To make a build that works on its own**, run `uv run lens bundle` on the PC first: the catalogue goes inside the app
+and is unpacked on first launch, so the phone never needs the PC.
+
 On first launch, **Setup** walks you through it:
 
 1. **Model**: downloads EmbeddingGemma 2 Text Vision 440M (388 MB). Use Wi-Fi.
-2. **Products from the PC**: run `uv run lens` (or `lens serve`) on the PC, tap *Scan the PC's code*, and point the
-   phone at the terminal. The phone and PC must be on the same Wi-Fi.
+2. **Products**: a bundled build unpacks its catalogue by itself. Otherwise run `uv run lens` (or `lens serve`) on the
+   PC, tap *Scan the PC's code*, and point the phone at the terminal (same Wi-Fi).
 3. **Check** (optional): embeds a few catalogue pictures on the phone and compares them with the PC's vectors. You want
    a similarity of about 0.95 or higher, with each picture finding itself first.
 
-Then point the camera at the product, fill the square with it, and press the shutter.
+Then point the camera at the product, fill the square with it, and press the shutter. Switch the camera to **Room** to
+scan a whole scene; the first time, it downloads its two extra models (193 MB).
 
 ## Docs
 
@@ -80,6 +89,7 @@ Then point the camera at the product, fill the square with it, and press the shu
 | [docs/pc-tool.md](docs/pc-tool.md) | Every `lens` command and option, the data folder, troubleshooting |
 | [docs/app.md](docs/app.md) | Building, first launch, screens, the native module, build plumbing, troubleshooting |
 | [docs/index-format.md](docs/index-format.md) | The files the PC writes and the phone reads |
+| [docs/room-scan.md](docs/room-scan.md) | Room scan: how it finds, outlines and matches things, what was tried, tuning |
 | [docs/demo.md](docs/demo.md) | Showing it to someone at the store |
 | [AGENTS.md](AGENTS.md) | For anyone changing the code: what must stay the same on both sides |
 
@@ -89,8 +99,11 @@ Then point the camera at the product, fill the square with it, and press the shu
 pc/lens/catalog.py         dataset + picture download, data clean-up
 pc/lens/index.py           GPU detection, embedding, the index format, `lens search`
 pc/lens/serve.py           Wi-Fi file server + terminal QR code
-app/src/                   screens, index import and search, photo crop, settings
-app/modules/gemma-embed/   native module: LiteRT-LM on Android (Kotlin) and iOS (Swift)
+pc/lens/pack.py            the single-file index for building into the app
+app/src/                   screens, index import and search, photo crop, settings, basket
+app/src/scene/             room scan: detect, outline, cut out (plain TypeScript)
+app/modules/gemma-embed/   native module: LiteRT-LM and ONNX Runtime on Android (Kotlin) and iOS (Swift, C++)
+tools/scene-check/         run the room scan on photos on the PC
 app/plugins/with-litert.js Android GPU libraries + embedding LiteRT-LM's iOS framework
 ```
 

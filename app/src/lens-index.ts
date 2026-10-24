@@ -95,10 +95,7 @@ export function normaliseAddress(address: string): string {
 /** Copy the index from `lens serve` on the PC. The old index stays until the new one has arrived whole. */
 export async function importIndex(address: string, onProgress: (message: string) => void): Promise<LensIndex> {
 	const base = normaliseAddress(address);
-	const directory = indexDirectory();
-	const incoming = new Directory(directory, "incoming");
-	if (incoming.exists) incoming.delete();
-	incoming.create({ intermediates: true });
+	const incoming = incomingDirectory();
 
 	onProgress("Fetching the product list…");
 	const manifestFile = await File.downloadFileAsync(`${base}manifest.json`, new File(incoming, "manifest.json"));
@@ -122,7 +119,38 @@ export async function importIndex(address: string, onProgress: (message: string)
 			await File.downloadFileAsync(`${base}details/${name}`, new File(details, name));
 		}
 	}
+	await installIncoming(manifest, { source: "pc", created: manifest.created });
+	return index;
+}
 
+/** Where the index on the phone came from: imported from the PC, or built into the app. */
+export interface IndexSource {
+	source: "pc" | "bundle";
+	created: string;
+}
+
+export function indexSource(): IndexSource | null {
+	const file = new File(indexDirectory(), "source.json");
+	try {
+		return file.exists ? (JSON.parse(file.textSync()) as IndexSource) : null;
+	} catch {
+		return null;
+	}
+}
+
+/** A fresh, empty `index/incoming/` to assemble a new index in before it replaces the current one. */
+export function incomingDirectory(): Directory {
+	const incoming = new Directory(indexDirectory(), "incoming");
+	if (incoming.exists) incoming.delete();
+	incoming.create({ intermediates: true });
+	return incoming;
+}
+
+/** Swap a complete index in `index/incoming/` into place. Until this runs, the previous index is untouched. */
+export async function installIncoming(manifest: Manifest, source: IndexSource): Promise<void> {
+	const directory = indexDirectory();
+	const incoming = new Directory(directory, "incoming");
+	const shards = manifest.details?.shards ?? 0;
 	for (const name of ["manifest.json", "vectors.bin"]) {
 		const current = new File(directory, name);
 		if (current.exists) current.delete();
@@ -138,7 +166,16 @@ export async function importIndex(address: string, onProgress: (message: string)
 		}
 	}
 	incoming.delete();
-	return index;
+	const marker = new File(directory, "source.json");
+	if (!marker.exists) marker.create();
+	marker.writeSync(JSON.stringify(source));
+}
+
+/** Read an index from its files (after `installIncoming`, or from `incoming/` to check it). */
+export async function openFiles(folder: Directory): Promise<LensIndex> {
+	const manifest = JSON.parse(await new File(folder, "manifest.json").text()) as Manifest;
+	if (manifest.format !== FORMAT) throw new Error("This isn't a Search Lens index.");
+	return open(manifest, await new File(folder, "vectors.bin").bytes());
 }
 
 /** The pictures closest to `query` (a unit vector of `dims` numbers), best first. Scores are cosine similarities. */

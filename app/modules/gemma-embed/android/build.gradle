@@ -17,4 +17,6 @@ android {
 dependencies {
   // EmbeddingGemma 2 through Google's LiteRT-LM (Apache-2.0). Keep in step with the iOS package in GemmaEmbed.podspec.
   implementation 'com.google.ai.edge.litertlm:litertlm-android:0.18.1'
+  // Room scan: OWL-ViT and EdgeTAM through OnnxRunner.kt. Keep in step with onnxruntime-c in GemmaEmbed.podspec.
+  implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.24.3'
 }

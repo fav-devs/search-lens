@@ -135,15 +135,16 @@ export function MatchBadge({ score, large }: { score: number; large?: boolean })
 	);
 }
 
-export type Tab = "home" | "search" | "you";
+export type Tab = "home" | "search" | "basket" | "you";
 
-/** The floating glass tab bar. Scan sits between the tabs, as IKEA's search sits beside the scanner. */
-export function TabBar({ tab, onTab, onScan }: { tab: Tab; onTab: (tab: Tab) => void; onScan: () => void }) {
+/** The floating glass tab bar, with Scan in the middle and the basket's count on its icon. */
+export function TabBar({ tab, onTab, onScan, basketCount = 0 }: { tab: Tab; onTab: (tab: Tab) => void; onScan: () => void; basketCount?: number }) {
 	const insets = useSafeAreaInsets();
 	const items: { key: Tab | "scan"; icon: IconName; active: IconName }[] = [
 		{ key: "home", icon: "home-outline", active: "home" },
 		{ key: "search", icon: "search-outline", active: "search" },
 		{ key: "scan", icon: "scan-outline", active: "scan" },
+		{ key: "basket", icon: "basket-outline", active: "basket" },
 		{ key: "you", icon: "person-outline", active: "person" },
 	];
 	return (
@@ -158,11 +159,43 @@ export function TabBar({ tab, onTab, onScan }: { tab: Tab; onTab: (tab: Tab) => 
 							style={[styles.tabItem, selected && styles.tabSelected]}
 							hitSlop={4}
 						>
-							<Ionicons name={selected ? item.active : item.icon} size={27} color={colors.text} />
+							<Ionicons name={selected ? item.active : item.icon} size={26} color={colors.text} />
+							{item.key === "basket" && basketCount > 0 ? (
+								<View style={styles.badgeCount}>
+									<Text style={styles.badgeCountText}>{basketCount > 99 ? "99+" : basketCount}</Text>
+								</View>
+							) : null}
 						</Pressable>
 					);
 				})}
 			</BlurView>
+		</View>
+	);
+}
+
+/** IKEA's quantity pill: − 1 +. */
+export function Stepper({
+	value,
+	onChange,
+	compact,
+	removes = true,
+}: {
+	value: number;
+	onChange: (value: number) => void;
+	compact?: boolean;
+	/** Going below 1 removes the item: the minus turns into a bin at 1. */
+	removes?: boolean;
+}) {
+	const size = compact ? 40 : 60;
+	return (
+		<View style={[styles.stepper, { height: size }]}>
+			<Pressable onPress={() => onChange(value - 1)} hitSlop={6} style={[styles.stepperButton, { width: size }]}>
+				<Ionicons name={removes && value <= 1 ? "trash-outline" : "remove"} size={compact ? 18 : 24} color={colors.text} />
+			</Pressable>
+			<Text style={[styles.stepperValue, compact && { fontSize: 15 }]}>{value}</Text>
+			<Pressable onPress={() => onChange(value + 1)} hitSlop={6} style={[styles.stepperButton, { width: size }]}>
+				<Ionicons name="add" size={compact ? 20 : 26} color={colors.text} />
+			</Pressable>
 		</View>
 	);
 }
@@ -196,6 +229,30 @@ const styles = StyleSheet.create({
 		borderWidth: StyleSheet.hairlineWidth,
 		borderColor: "rgba(255,255,255,0.25)",
 	},
-	tabItem: { width: 76, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
+	tabItem: { width: 62, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
+	badgeCount: {
+		position: "absolute",
+		top: 6,
+		right: 8,
+		minWidth: 20,
+		height: 20,
+		borderRadius: 10,
+		paddingHorizontal: 5,
+		backgroundColor: colors.yellow,
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	badgeCountText: { color: colors.tileText, fontFamily: fonts.bold, fontSize: 11 },
+	stepper: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+		borderRadius: 999,
+		borderWidth: 1,
+		borderColor: colors.divider,
+		backgroundColor: colors.field,
+	},
+	stepperButton: { height: "100%", alignItems: "center", justifyContent: "center" },
+	stepperValue: { color: colors.text, fontFamily: fonts.bold, fontSize: 18, minWidth: 28, textAlign: "center" },
 	tabSelected: { backgroundColor: "rgba(40,40,40,0.75)" },
 });

@@ -5,6 +5,7 @@
   lens index           embed the pictures on the GPU and write the phone's index
   lens search QUERY    try the index here: a photo's path or a description
   lens serve           share the index on Wi-Fi with a QR code for the app
+  lens bundle          put the index inside the app, so a new build works without the PC
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from . import catalog, index, serve
+from . import catalog, index, pack, serve
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -41,6 +42,9 @@ def main(argv: list[str] | None = None) -> None:
     share = commands.add_parser("serve", help="share the index on Wi-Fi with a QR code")
     share.add_argument("--port", type=int, default=8765)
 
+    build_in = commands.add_parser("bundle", help="put the index inside the app (app/assets/searchlens.pack)")
+    build_in.add_argument("--app", type=Path, default=Path("../app"), help="the app folder (default ../app)")
+
     args = parser.parse_args(argv)
     console = Console()
     data: Path = args.data.resolve()
@@ -53,6 +57,8 @@ def main(argv: list[str] | None = None) -> None:
         index.search(data, args.query, args.top, args.cpu, console)
     elif args.command == "serve":
         serve.serve(data / "index", args.port, console)
+    elif args.command == "bundle":
+        pack.bundle(data, args.app.resolve(), console)
     else:
         console.rule("1 · Download")
         catalog.download(data, [], None, "xxs", 8, console)

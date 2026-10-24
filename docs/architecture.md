@@ -67,6 +67,15 @@ product pictures.
 
 **Similar products** skips the model entirely: it searches with the picture's own stored vector.
 
+## Room scan
+
+A second camera mode finds several products in one photo. OWL-ViT (an open-vocabulary detector, told to look for
+chairs, lamps, shelves, cushions and so on) draws boxes; EdgeTAM turns each box into an outline; each object is cut
+out onto white like a catalogue shot and searched exactly like a single-product photo; objects that match nothing
+well are dropped. Both extra models run on ONNX Runtime through the app's native module, and the steps in between
+are plain TypeScript that also runs on the PC (`tools/scene-check`). Details and what was tried first in
+[room-scan.md](room-scan.md).
+
 ## Product pages and IKEA links
 
 The index carries each product's description, good-to-know notes, materials, care instructions and category path,

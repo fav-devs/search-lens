@@ -30,6 +30,7 @@ uv run lens download [--category TEXT]… [--limit N] [--size xxs|xs|s|m] [--wor
 uv run lens index    [--dims 128|256|512|768] [--batch 16] [--cpu]
 uv run lens search   QUERY [--top 8] [--cpu]
 uv run lens serve    [--port 8765]
+uv run lens bundle   [--app ../app]
 ```
 
 `--data DIR` (default `./data`) goes **before** the command, e.g. `uv run lens --data D:\lens index`, and applies to all
@@ -81,6 +82,16 @@ and logs each file the phone takes. In the app: **Setup → Scan the PC's code**
 
 The QR code is drawn in black and white whatever the terminal's colours, so it scans on dark themes too.
 
+### `lens bundle`
+
+Packs `data/index/` into one file, `app/assets/searchlens.pack` (about 55 MB for the whole catalogue; format in
+[index-format.md](index-format.md#the-pack-searchlenspack)). The next app build includes it, and the app installs it the
+first time it opens, so a phone with that build needs no PC at all. `--app` points at the app folder if it isn't
+`../app`.
+
+The pack is ignored by git but uploaded to EAS (see `.easignore`). Without one, the app builds as before and gets its
+index over Wi-Fi.
+
 ## The data folder
 
 ```
@@ -92,6 +103,8 @@ pc/data/
   embeddings/<signature>/  768-number vectors, 512 pictures per file
   index/                   what the phone gets: manifest.json, vectors.bin, details/
 ```
+
+`lens bundle` writes outside this folder, into the app: `app/assets/searchlens.pack`.
 
 All of it can be rebuilt; it's ignored by git.
 

@@ -22,6 +22,7 @@ export function SetupScreen({
 	settings,
 	onSettings,
 	inTabs,
+	unpacking,
 }: {
 	model: ModelState;
 	setModel: (state: ModelState) => void;
@@ -34,6 +35,8 @@ export function SetupScreen({
 	onSettings?: (settings: Settings) => void;
 	/** Shown as a tab, above the tab bar. */
 	inTabs?: boolean;
+	/** 0–1 while the index built into the app is being unpacked. */
+	unpacking?: number | null;
 }) {
 	const insets = useSafeAreaInsets();
 	const [address, setAddress] = useState("");
@@ -128,15 +131,20 @@ export function SetupScreen({
 			</View>
 
 			<View style={styles.card}>
-				<Text style={styles.step}>2 · Products from the PC</Text>
-				{index ? (
+				<Text style={styles.step}>2 · Products</Text>
+				{unpacking != null ? (
+					<Progress fraction={unpacking} label={`Unpacking the catalogue built into the app… ${Math.round(unpacking * 100)}%`} />
+				) : index ? (
 					<Status
 						good
 						text={`${index.manifest.products.length.toLocaleString()} products · ${index.manifest.count.toLocaleString()} pictures · built ${new Date(index.manifest.created).toLocaleDateString()}`}
 					/>
 				) : (
-					<Text style={styles.muted}>On the PC, run `lens` (or `lens serve`), then scan the code it shows.</Text>
+					<Text style={styles.muted}>
+						This build has no catalogue inside. On the PC, run `lens` (or `lens serve`), then scan the code it shows.
+					</Text>
 				)}
+				{index ? <Text style={styles.muted}>To update it from the PC, run `lens serve` there and scan its code.</Text> : null}
 				{importing ? (
 					<Status spinner text={importing} />
 				) : (

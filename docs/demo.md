@@ -6,9 +6,11 @@ How to show Search Lens to someone at the store without it falling over.
 
 1. **Build the index at home.** On the PC: `cd pc`, `uv run lens`. It downloads, embeds (minutes on the GPU) and shows
    a QR code.
-2. **Install a `preview` build** (`npx eas-cli build --profile preview --platform android`, or ios). It runs on its
-   own; a development build needs the PC running `expo start`.
-3. **Set the phone up on home Wi-Fi.** Setup → download the model (388 MB) → *Scan the PC's code*.
+2. **Bundle it and build.** `uv run lens bundle`, then a `preview` build
+   (`npx eas-cli build --profile preview --platform android`, or ios). It has the catalogue inside and runs without
+   the PC; a development build needs the PC running `expo start`.
+3. **Set the phone up on home Wi-Fi.** Open the app: it unpacks the catalogue, then download the model (388 MB). Open
+   the camera, switch to **Room** and download the room scan (193 MB) too.
 4. **Run Check.** You want *Phone and PC agree* (similarity above 0.95). If it's lower, see
    [app.md](app.md#troubleshooting) before trusting any demo.
 5. **Choose the links.** You → Product links → *Canada* opens ikea.com/ca pages (and the IKEA app set to Canada).
@@ -28,6 +30,8 @@ How to show Search Lens to someone at the store without it falling over.
 
 ## Good things to show
 
+- **Room scan** on a display room or a desk: numbered dots on the photo, the list underneath, tap a dot, add two
+  things to the basket, then **Share list** from the Basket tab. It takes several seconds; say what it's doing.
 - A tagless product → **Best matches** → product page → **Open in IKEA** jumping into the IKEA app.
 - **Similar products** on a product page: instant, and handy when the exact variant isn't the top match.
 - **Search** by description: "white bin with lid", "black desk lamp".

@@ -11,15 +11,21 @@ import { StatusBar } from "expo-status-bar";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, BackHandler, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { type Basket, basketCount, readBasket, withQuantity, writeBasket } from "./basket";
+import { bundledIndexWanted, installBundledIndex } from "./bundled";
 import { splitTitle } from "./format";
 import { type LensIndex, loadIndex, type Product, pictureVector, search } from "./lens-index";
 import { embedImage, embedText, loadModel, modelPresent } from "./model";
 import { cropToGuide } from "./photo";
+import { downloadSceneModels, sceneModelsPresent } from "./scene/models";
+import { type RoomScan, scanRoom } from "./scene/room";
 import { readSettings, type Settings, writeSettings } from "./settings";
-import { CameraScreen } from "./screens/CameraScreen";
+import { BasketScreen } from "./screens/BasketScreen";
+import { CameraScreen, type ScanMode } from "./screens/CameraScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { type OpenProduct, ProductSheet } from "./screens/ProductSheet";
 import { ProductListScreen, type Result, resultProducts } from "./screens/ResultsScreen";
+import { RoomScreen } from "./screens/RoomScreen";
 import { ScanIntroScreen } from "./screens/ScanIntroScreen";
 import { SearchScreen } from "./screens/SearchScreen";
 import { SetupScreen } from "./screens/SetupScreen";
@@ -38,6 +44,7 @@ type Route =
 	| { name: "intro" }
 	| { name: "camera" }
 	| { name: "results"; result: Result }
+	| { name: "room"; scan: RoomScan }
 	| { name: "category"; category: string };
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -49,6 +56,7 @@ export default function App() {
 	const [model, setModel] = useState<ModelState>({ state: modelOnDisk ? "loading" : "missing" });
 	const [index, setIndex] = useState<LensIndex | null>(null);
 	const [indexRead, setIndexRead] = useState(false);
+	const [unpacking, setUnpacking] = useState<number | null>(null);
 	const [tab, setTab] = useState<Tab>("home");
 	const [stack, setStack] = useState<Route[]>([]);
 	const [open, setOpen] = useState<OpenProduct | null>(null);
@@ -57,15 +65,40 @@ export default function App() {
 	const [saved, setSaved] = useState<Product[]>([]);
 	const [busy, setBusy] = useState(false);
 	const [settings, setSettings] = useState<Settings>(readSettings);
+	const [basket, setBasket] = useState<Basket>(readBasket);
+	const [scanMode, setScanMode] = useState<ScanMode>("product");
+	const [roomStep, setRoomStep] = useState<string | null>(null);
+	const [roomReady, setRoomReady] = useState(sceneModelsPresent);
+	const [roomDownload, setRoomDownload] = useState<number | null>(null);
 	const changeSettings = useCallback((next: Settings) => {
 		setSettings(next);
 		writeSettings(next);
 	}, []);
 
 	useEffect(() => {
-		loadIndex()
-			.then(setIndex, (error) => Alert.alert("Couldn't read the saved index", message(error)))
-			.finally(() => setIndexRead(true));
+		(async () => {
+			let installed: LensIndex | null = null;
+			try {
+				installed = await loadIndex();
+				setIndex(installed);
+			} catch (error) {
+				Alert.alert("Couldn't read the saved index", message(error));
+			}
+			// A build with the catalogue inside installs it the first time it opens, and again after an update brings
+			// a newer one, unless the index on the phone was imported from the PC.
+			if (bundledIndexWanted(installed)) {
+				try {
+					setUnpacking(0);
+					const bundled = await installBundledIndex(installed, setUnpacking);
+					if (bundled) setIndex(bundled);
+				} catch (error) {
+					Alert.alert("Couldn't unpack the catalogue", message(error));
+				} finally {
+					setUnpacking(null);
+				}
+			}
+			setIndexRead(true);
+		})();
 	}, []);
 
 	// The model has to look at photos with the same number of vision tokens the PC used for the catalogue, so it is
@@ -171,6 +204,47 @@ export default function App() {
 		[push],
 	);
 
+	const setQuantity = useCallback((product: Product, quantity: number) => {
+		setBasket((current) => {
+			const next = withQuantity(current, product.id, quantity);
+			writeBasket(next);
+			return next;
+		});
+	}, []);
+
+	const downloadRoom = useCallback(async () => {
+		if (roomDownload !== null) return;
+		setRoomDownload(0);
+		try {
+			await downloadSceneModels(setRoomDownload);
+			setRoomReady(true);
+		} catch (error) {
+			Alert.alert("Couldn't download the room scan", message(error));
+		} finally {
+			setRoomDownload(null);
+		}
+	}, [roomDownload]);
+
+	const onRoomPhoto = useCallback(
+		async (uri: string) => {
+			if (!index) return;
+			setBusy(true);
+			setRoomStep("Reading the photo…");
+			try {
+				const scan = await scanRoom(uri, index, setRoomStep);
+				const found = scan.objects.map((o) => o.hits[0].products[0]);
+				setRecent((products) => [...found, ...products.filter((p) => !found.some((f) => f.id === p.id))].slice(0, 10));
+				setStack((routes) => [...routes.filter((route) => route.name !== "camera"), { name: "room", scan }]);
+			} catch (error) {
+				Alert.alert("Room scan failed", message(error));
+			} finally {
+				setBusy(false);
+				setRoomStep(null);
+			}
+		},
+		[index],
+	);
+
 	const toggleSaved = useCallback(() => {
 		if (!open) return;
 		setSaved((products) =>
@@ -194,7 +268,14 @@ export default function App() {
 	let screen: ReactNode;
 	if (!backend || !index) {
 		screen = (
-			<SetupScreen model={model} setModel={setModel} onModelDownloaded={() => setModelOnDisk(true)} index={index} onIndex={setIndex} />
+			<SetupScreen
+				model={model}
+				setModel={setModel}
+				onModelDownloaded={() => setModelOnDisk(true)}
+				index={index}
+				onIndex={setIndex}
+				unpacking={unpacking}
+			/>
 		);
 	} else if (top?.name === "intro") {
 		screen = (
@@ -208,7 +289,31 @@ export default function App() {
 			/>
 		);
 	} else if (top?.name === "camera") {
-		screen = <CameraScreen busy={busy} onPhoto={onPhoto} onClose={pop} />;
+		screen = (
+			<CameraScreen
+				mode={scanMode}
+				onMode={setScanMode}
+				busy={busy}
+				step={roomStep}
+				roomReady={roomReady}
+				roomDownload={roomDownload}
+				onDownloadRoom={downloadRoom}
+				onPhoto={onPhoto}
+				onRoomPhoto={onRoomPhoto}
+				onClose={pop}
+			/>
+		);
+	} else if (top?.name === "room") {
+		screen = (
+			<RoomScreen
+				scan={top.scan}
+				index={index}
+				basket={basket}
+				onBasket={setQuantity}
+				onProduct={(product, score) => setOpen({ product, score })}
+				onBack={pop}
+			/>
+		);
 	} else if (top?.name === "results") {
 		const { query, timings } = top.result;
 		const title =
@@ -260,6 +365,8 @@ export default function App() {
 						onScan={startScan}
 						onCategory={onCategory}
 					/>
+				) : tab === "basket" ? (
+					<BasketScreen basket={basket} index={index} onQuantity={setQuantity} onProduct={(product) => setOpen({ product })} onScan={startScan} />
 				) : (
 					<SetupScreen
 						model={model}
@@ -273,7 +380,7 @@ export default function App() {
 						inTabs
 					/>
 				)}
-				<TabBar tab={tab} onTab={setTab} onScan={startScan} />
+				<TabBar tab={tab} onTab={setTab} onScan={startScan} basketCount={basketCount(basket)} />
 			</>
 		);
 	}
@@ -289,6 +396,8 @@ export default function App() {
 					country={settings.country}
 					saved={open ? saved.some((p) => p.id === open.product.id) : false}
 					onToggleSaved={toggleSaved}
+					inBasket={open ? (basket[open.product.id] ?? 0) : 0}
+					onBasket={setQuantity}
 					onClose={() => setOpen(null)}
 					onSimilar={onSimilar}
 					onCategory={onCategory}

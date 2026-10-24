@@ -10,6 +10,8 @@ app/.expo/
 app/android/
 app/ios/
 app/dist/
+# Built by `lens bundle` on the PC; included in EAS builds through .easignore.
+app/assets/searchlens.pack
 app/expo-env.d.ts
 *.tsbuildinfo
 

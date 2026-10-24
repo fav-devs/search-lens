@@ -6,6 +6,7 @@ import com.google.ai.edge.litertlm.EmbeddingEngine
 import com.google.ai.edge.litertlm.EmbeddingEngineConfig
 import com.google.ai.edge.litertlm.EmbeddingOptions
 import com.google.ai.edge.litertlm.InputData
+import expo.modules.kotlin.jni.ArrayBuffer
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.File
@@ -40,6 +41,24 @@ class GemmaEmbedModule : Module() {
     }
 
     AsyncFunction("close") { close() }
+
+    // Any ONNX model from JS (OnnxRunner.kt): float32 values packed into one ArrayBuffer each way.
+    // `coreML` is the iPhone's; Android runs on the CPU.
+    AsyncFunction("onnxCreateSession") { modelPath: String, threads: Int, _: Boolean ->
+      OnnxSessions.create(path(modelPath), threads)
+    }
+
+    AsyncFunction("onnxRun") { sessionId: Int, inputs: List<Map<String, Any?>>, data: ArrayBuffer, outputNames: List<String> ->
+      val names = inputs.map { it["name"] as? String ?: throw IllegalArgumentException("An input has no name") }
+      val dims = inputs.map { input ->
+        (input["dims"] as? List<*>)?.map { (it as Number).toLong() }?.toLongArray() ?: throw IllegalArgumentException("An input has no dims")
+      }
+      ArrayBuffer(OnnxSessions.run(sessionId, names, dims, data.toDirectBuffer(), outputNames))
+    }
+
+    Function("onnxRelease") { sessionId: Int ->
+      OnnxSessions.release(sessionId)
+    }
 
     OnDestroy { close() }
   }
