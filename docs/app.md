@@ -16,6 +16,27 @@ npx expo start --dev-client                                    # serve the JavaS
 | --- | --- |
 | `development` | A development build (Android: an APK) that loads the JavaScript from `expo start`. For working on the app. |
 | `preview` | A standalone build with the JavaScript inside. Install it and it runs on its own, without a PC: use this for demos. |
+| `production` | A signed store build for TestFlight or the App Store, with an incremented build number. |
+
+### iOS cloud build from Windows
+
+```sh
+cd app
+npm ci
+npx eas-cli login
+npx eas-cli init
+npx eas-cli device:create
+npm run eas:ios:preview
+```
+
+Use an Apple Developer Program account when EAS asks for signing credentials. Register the iPhone with
+`device:create` before the preview build: internal iOS builds install only on devices in the provisioning profile.
+`eas init` links the app to your Expo project and writes its project ID into the app configuration; keep that change.
+The preview build includes JavaScript and runs without Metro. For development with Metro use `npm run eas:ios`.
+
+For TestFlight, run `npm run eas:ios:production`, then `npx eas-cli submit --platform ios --latest`.
+Submission requires the matching app in App Store Connect. The cloud build runs Xcode and CocoaPods; Windows only
+uploads the project. Run **Setup → Check** on the installed iPhone to verify its vectors against the PC index.
 
 The first `eas build` asks to create an EAS project and, on iOS, for an Apple developer account to sign with. The
 bundle id and Android package are `me.favdevs.searchlens`.

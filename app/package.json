@@ -10,6 +10,8 @@
 		"check-types": "tsc --noEmit",
 		"eas:android": "npx eas-cli build --profile development --platform android",
 		"eas:ios": "npx eas-cli build --profile development --platform ios",
+		"eas:ios:preview": "npx eas-cli build --profile preview --platform ios",
+		"eas:ios:production": "npx eas-cli build --profile production --platform ios",
 		"eas-build-post-install": "node scripts/prepare-ios-litert-lfs.mjs"
 	},
 	"dependencies": {
