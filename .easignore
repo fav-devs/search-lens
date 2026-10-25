@@ -9,6 +9,9 @@ __pycache__/
 
 # App
 app/node_modules/
+tools/scene-check/node_modules/
+tools/scene-check/models/
+tools/scene-check/out/
 app/.expo/
 app/android/
 app/ios/
